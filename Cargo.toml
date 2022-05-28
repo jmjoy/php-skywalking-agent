@@ -14,6 +14,10 @@ publish = false
 name = "skywalking_agent"
 crate-type = ["cdylib"]
 
+[[bin]]
+name = "skywalking_agent"
+path = "src/main.rs"
+
 [dependencies]
 ipc-channel = "0.16.0"
 once_cell = "1.12.0"

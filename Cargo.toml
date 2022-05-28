@@ -2,14 +2,21 @@
 name = "php-skywalking-agent"
 version = "0.1.0"
 authors = ["jmjoy <918734043@qq.com>"]
-description = ""
+description = "Non intrusive PHP skywalking agent, written in Rust."
 edition = "2021"
 rust-version = "1.58"
-repository = ""
+repository = "https://github.com/jmjoy/php-skywalking-agent"
 license = "MulanPSL-2.0"
 readme = "README.md"
-keywords = []
-categories = []
 publish = false
 
+[lib]
+name = "skywalking_agent"
+crate-type = ["cdylib"]
+
 [dependencies]
+ipc-channel = "0.16.0"
+once_cell = "1.12.0"
+phper = "0.4.0-alpha.1"
+skywalking_rust = "0.1.0"
+tokio = { version = "1.18.2", features = ["full"] }

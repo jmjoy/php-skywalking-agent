@@ -8,7 +8,8 @@
 // NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 // See the Mulan PSL v2 for more details.
 
-use {super::Plugin, phper::values::ExecuteData};
+use super::Plugin;
+use phper::values::ExecuteData;
 
 #[derive(Default)]
 pub struct CurlPlugin {}
@@ -25,7 +26,7 @@ impl Plugin for CurlPlugin {
     }
 
     fn before_execute(
-        &self, execute_data: &mut ExecuteData, class_name: Option<&str>, function_name: &str,
+        &self, _execute_data: &mut ExecuteData, class_name: Option<&str>, function_name: &str,
     ) {
         dbg!(class_name, function_name);
     }

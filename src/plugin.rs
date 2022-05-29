@@ -10,10 +10,8 @@
 
 mod curl;
 
-use {
-    once_cell::sync::OnceCell,
-    phper::values::{ExecuteData, Val},
-};
+use once_cell::sync::OnceCell;
+use phper::values::{ExecuteData, Val};
 
 pub trait Plugin {
     fn class_names(&self) -> Option<&'static [&'static str]>;

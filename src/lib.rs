@@ -15,25 +15,32 @@
 mod execute;
 mod module;
 mod plugin;
+mod report;
+mod request;
 
-use {
-    crate::module::module_init,
-    once_cell::sync::OnceCell,
-    phper::{
-        ini::{Ini, Policy},
-        modules::Module,
-        php_get_module,
-    },
-    std::{mem::forget, num::NonZeroUsize, sync::Arc, thread::available_parallelism},
-    tokio::runtime::{self, Runtime},
+use phper::{
+    ini::{Ini, Policy},
+    modules::Module,
+    php_get_module,
 };
 
 /// Enable agent and report or not.
 const SKYWALKING_AGENT_ENABLE: &str = "skywalking_agent.enable";
+
 /// Version of skywalking server.
 const SKYWALKING_AGENT_VERSION: &str = "skywalking_agent.version";
+
+/// skywalking server address.
+const SKYWALKING_AGENT_SERVER_ADDR: &str = "skywalking_agent.server_addr";
+
 /// Tokio runtime worker threads.
 const SKYWALKING_AGENT_WORKER_THREADS: &str = "skywalking_agent.worker_threads";
+
+/// Log level of skywalking agent.
+const SKYWALKING_AGENT_LOG_LEVEL: &str = "skywalking_agent.log_level";
+
+/// Log file of skywalking agent.
+const SKYWALKING_AGENT_LOG_FILE: &str = "skywalking_agent.log_file";
 
 #[php_get_module]
 pub fn get_module() -> Module {
@@ -44,42 +51,30 @@ pub fn get_module() -> Module {
     );
 
     // Register skywalking_agent ini.
-    Ini::add(SKYWALKING_AGENT_ENABLE, false, Policy::All);
-    Ini::add(SKYWALKING_AGENT_VERSION, 9i64, Policy::All);
-    Ini::add(SKYWALKING_AGENT_WORKER_THREADS, 0i64, Policy::All);
+    Ini::add(SKYWALKING_AGENT_ENABLE, false, Policy::System);
+    Ini::add(SKYWALKING_AGENT_VERSION, 9i64, Policy::System);
+    Ini::add(
+        SKYWALKING_AGENT_SERVER_ADDR,
+        "127.0.0.1:11800".to_string(),
+        Policy::System,
+    );
+    Ini::add(SKYWALKING_AGENT_WORKER_THREADS, 0i64, Policy::System);
+    Ini::add(
+        SKYWALKING_AGENT_LOG_LEVEL,
+        "INFO".to_string(),
+        Policy::System,
+    );
+    Ini::add(
+        SKYWALKING_AGENT_LOG_FILE,
+        "/tmp/skywalking_agent.log".to_string(),
+        Policy::System,
+    );
 
-    let rt = Arc::new(OnceCell::new());
-    let rt_ = rt.clone();
-
-    module.on_module_init(move |_| {
-        let enable = Ini::get::<bool>(SKYWALKING_AGENT_ENABLE).unwrap_or_default();
-        if enable {
-            module_init();
-
-            let guard = rt.get_or_init(new_tokio_runtime).enter();
-            forget(guard);
-        }
-        true
-    });
-    module.on_module_shutdown(move |_| {
-        drop(rt_);
-        true
-    });
+    // Hooks.
+    module.on_module_init(module::init);
+    module.on_module_shutdown(module::shutdown);
+    module.on_request_init(request::init);
+    module.on_request_shutdown(request::shutdown);
 
     module
-}
-
-fn new_tokio_runtime() -> Runtime {
-    let worker_threads = Ini::get::<i64>(SKYWALKING_AGENT_WORKER_THREADS).unwrap_or(0);
-    let worker_threads = if worker_threads <= 0 {
-        available_parallelism().map(NonZeroUsize::get).unwrap_or(1)
-    } else {
-        worker_threads as usize
-    };
-
-    runtime::Builder::new_multi_thread()
-        .enable_all()
-        .worker_threads(worker_threads)
-        .build()
-        .unwrap()
 }

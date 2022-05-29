@@ -8,13 +8,11 @@
 // NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 // See the Mulan PSL v2 for more details.
 
-use {
-    crate::plugin::select_plugin,
-    phper::{
-        strings::ZendString,
-        sys,
-        values::{ExecuteData, Val},
-    },
+use crate::{module::is_ready_for_request, plugin::select_plugin};
+use phper::{
+    strings::ZendString,
+    sys,
+    values::{ExecuteData, Val},
 };
 
 static mut ORI_EXECUTE_INTERNAL: Option<
@@ -24,6 +22,11 @@ static mut ORI_EXECUTE_INTERNAL: Option<
 unsafe extern "C" fn execute_internal(
     execute_data: *mut sys::zend_execute_data, return_value: *mut sys::zval,
 ) {
+    if !is_ready_for_request() {
+        ori_execute_internal(execute_data, return_value);
+        return;
+    }
+
     let execute = ExecuteData::from_mut_ptr(execute_data);
 
     let function = execute.func();
@@ -73,7 +76,7 @@ unsafe fn ori_execute_internal(
     }
 }
 
-pub fn exchange_execute() {
+pub fn register_execute_functions() {
     unsafe {
         ORI_EXECUTE_INTERNAL = sys::zend_execute_internal;
         sys::zend_execute_internal = Some(execute_internal);

@@ -14,6 +14,7 @@
 
 mod execute;
 mod module;
+mod plugin;
 
 use {
     crate::module::module_init,
@@ -27,7 +28,11 @@ use {
     tokio::runtime::{self, Runtime},
 };
 
+/// Enable agent and report or not.
 const SKYWALKING_AGENT_ENABLE: &str = "skywalking_agent.enable";
+/// Version of skywalking server.
+const SKYWALKING_AGENT_VERSION: &str = "skywalking_agent.version";
+/// Tokio runtime worker threads.
 const SKYWALKING_AGENT_WORKER_THREADS: &str = "skywalking_agent.worker_threads";
 
 #[php_get_module]
@@ -40,6 +45,7 @@ pub fn get_module() -> Module {
 
     // Register skywalking_agent ini.
     Ini::add(SKYWALKING_AGENT_ENABLE, false, Policy::All);
+    Ini::add(SKYWALKING_AGENT_VERSION, 9i64, Policy::All);
     Ini::add(SKYWALKING_AGENT_WORKER_THREADS, 0i64, Policy::All);
 
     let rt = Arc::new(OnceCell::new());

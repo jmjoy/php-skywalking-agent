@@ -8,8 +8,25 @@
 // NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 // See the Mulan PSL v2 for more details.
 
-use crate::execute::exchange_execute;
+use {super::Plugin, phper::values::ExecuteData};
 
-pub fn module_init() {
-    exchange_execute();
+#[derive(Default)]
+pub struct CurlPlugin {}
+
+impl Plugin for CurlPlugin {
+    #[inline]
+    fn class_names(&self) -> Option<&'static [&'static str]> {
+        None
+    }
+
+    #[inline]
+    fn function_name_prefix(&self) -> Option<&'static str> {
+        Some("curl_")
+    }
+
+    fn before_execute(
+        &self, execute_data: &mut ExecuteData, class_name: Option<&str>, function_name: &str,
+    ) {
+        dbg!(class_name, function_name);
+    }
 }

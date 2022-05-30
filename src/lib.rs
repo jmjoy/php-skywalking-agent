@@ -33,6 +33,9 @@ const SKYWALKING_AGENT_VERSION: &str = "skywalking_agent.version";
 /// skywalking server address.
 const SKYWALKING_AGENT_SERVER_ADDR: &str = "skywalking_agent.server_addr";
 
+/// skywalking app service name.
+const SKYWALKING_AGENT_SERVICE_NAME: &str = "skywalking_agent.service_name";
+
 /// Tokio runtime worker threads.
 const SKYWALKING_AGENT_WORKER_THREADS: &str = "skywalking_agent.worker_threads";
 
@@ -55,7 +58,12 @@ pub fn get_module() -> Module {
     Ini::add(SKYWALKING_AGENT_VERSION, 9i64, Policy::System);
     Ini::add(
         SKYWALKING_AGENT_SERVER_ADDR,
-        "127.0.0.1:11800".to_string(),
+        "http://127.0.0.1:11800".to_string(),
+        Policy::System,
+    );
+    Ini::add(
+        SKYWALKING_AGENT_SERVICE_NAME,
+        "hello_skywalking".to_string(),
         Policy::System,
     );
     Ini::add(SKYWALKING_AGENT_WORKER_THREADS, 0i64, Policy::System);

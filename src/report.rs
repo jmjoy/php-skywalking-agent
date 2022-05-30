@@ -8,20 +8,31 @@
 // NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 // See the Mulan PSL v2 for more details.
 
-use crate::{SKYWALKING_AGENT_SERVER_ADDR, SKYWALKING_AGENT_WORKER_THREADS};
+use crate::{
+    module::mark_ready_for_request, SKYWALKING_AGENT_SERVER_ADDR, SKYWALKING_AGENT_SERVICE_NAME,
+    SKYWALKING_AGENT_WORKER_THREADS,
+};
 use phper::ini::Ini;
-use skywalking_rust::reporter::grpc::Reporter;
+use skywalking_rust::skywalking_proto::v3::trace_segment_report_service_client::TraceSegmentReportServiceClient;
 use std::{
     num::NonZeroUsize,
     thread::{self, available_parallelism},
+    time::Duration,
 };
-use tokio::runtime::{self, Runtime};
-use tracing::debug;
+use tokio::{
+    runtime::{self, Runtime},
+    time::sleep,
+};
+use tonic::transport::Endpoint;
+use tracing::{debug, error, info, warn};
 
 pub fn init_reporter() {
-    thread::spawn(|| {
+    let server_addr = Ini::get::<String>(SKYWALKING_AGENT_SERVER_ADDR).unwrap_or_default();
+    let service_name = Ini::get::<String>(SKYWALKING_AGENT_SERVICE_NAME).unwrap_or_default();
+
+    thread::spawn(move || {
         let rt = new_tokio_runtime();
-        rt.block_on(start_reporter());
+        rt.block_on(start_reporter(server_addr, service_name));
     });
 }
 
@@ -40,8 +51,33 @@ fn new_tokio_runtime() -> Runtime {
         .unwrap()
 }
 
-async fn start_reporter() {
-    debug!("starting reporter");
-    let addr = Ini::get::<String>(SKYWALKING_AGENT_SERVER_ADDR).unwrap_or_default();
-    let reporter = Reporter::start(addr).await;
+async fn start_reporter(server_addr: String, _service_name: String) {
+    debug!("Starting reporter...");
+
+    let f = async move {
+        let endpoint = Endpoint::from_shared(server_addr)?;
+        let channel = loop {
+            match endpoint.connect().await {
+                Ok(channel) => break channel,
+                Err(e) => {
+                    warn!(
+                        "Connect to skywalking server failed, retry after 10s: {}",
+                        e
+                    );
+                    sleep(Duration::from_secs(10)).await;
+                }
+            }
+        };
+
+        info!("Skywalking server connected.");
+        mark_ready_for_request();
+
+        let _client = TraceSegmentReportServiceClient::new(channel);
+
+        Ok::<_, anyhow::Error>(())
+    };
+
+    if let Err(e) = f.await {
+        error!("Start reporter failed: {}", e);
+    }
 }

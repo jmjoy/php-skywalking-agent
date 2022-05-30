@@ -10,7 +10,14 @@ NOTE: This is a php extension project, which use pure Rust rather than C/C++, po
 
 1. Install [Rust](https://www.rust-lang.org/).
 
-    <https://www.rust-lang.org/tools/install>
+    See: <https://www.rust-lang.org/tools/install>.
+
+1. Clone the repository.
+
+   ```shell
+   git clone --recursive https://github.com/jmjoy/php-skywalking-agent.git
+   cd php-skywalking-agent
+   ```
 
 1. Build the extension.
 

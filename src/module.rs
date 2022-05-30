@@ -24,7 +24,7 @@ use std::{
     str::FromStr,
     sync::atomic::{AtomicBool, Ordering},
 };
-use tracing::{debug, metadata::LevelFilter};
+use tracing::metadata::LevelFilter;
 use tracing_subscriber::FmtSubscriber;
 
 pub fn init(_module: ModuleContext) -> bool {

@@ -17,7 +17,6 @@ use phper::{
     sys,
     values::{ExecuteData, Val},
 };
-use skywalking_rust::context::trace_context::TracingContext;
 use tracing::{debug, error};
 use url::Url;
 

@@ -27,6 +27,7 @@ ipc-channel = "0.16.0"
 once_cell = "1.12.0"
 phper = "0.4.0-alpha.1"
 skywalking_rust = { git = "https://github.com/jmjoy/skywalking-rust.git", branch = "hack" }
+systemstat = "0.1.11"
 tokio = { version = "1.18.2", features = ["full"] }
 tonic = "0.7.2"
 tracing = { version = "0.1.34", features = ["attributes"] }

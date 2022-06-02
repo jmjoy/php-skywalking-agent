@@ -9,8 +9,9 @@
 // See the Mulan PSL v2 for more details.
 
 use crate::{
-    channel::channel_receive, module::mark_ready_for_request, SKYWALKING_AGENT_SERVER_ADDR,
-    SKYWALKING_AGENT_SERVICE_NAME, SKYWALKING_AGENT_WORKER_THREADS,
+    channel::channel_receive,
+    module::{mark_ready_for_request, SERVICE_NAME},
+    SKYWALKING_AGENT_SERVER_ADDR, SKYWALKING_AGENT_SERVICE_NAME, SKYWALKING_AGENT_WORKER_THREADS,
 };
 use anyhow::Context;
 use phper::ini::Ini;
@@ -37,7 +38,7 @@ use tracing::{debug, error, info, warn};
 
 pub fn init_reporter() {
     let server_addr = Ini::get::<String>(SKYWALKING_AGENT_SERVER_ADDR).unwrap_or_default();
-    let service_name = Ini::get::<String>(SKYWALKING_AGENT_SERVICE_NAME).unwrap_or_default();
+    let service_name = SERVICE_NAME.clone();
 
     thread::spawn(move || {
         let rt = new_tokio_runtime();

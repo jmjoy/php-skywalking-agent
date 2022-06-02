@@ -18,6 +18,7 @@ mod module;
 mod plugin;
 mod report;
 mod request;
+mod util;
 
 use phper::{
     ini::{Ini, Policy},

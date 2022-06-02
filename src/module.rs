@@ -9,12 +9,14 @@
 // See the Mulan PSL v2 for more details.
 
 use crate::{
-    channel::init_channel, execute::register_execute_functions, report::init_reporter,
+    channel::init_channel, execute::register_execute_functions, report::init_reporter, util::IPS,
     SKYWALKING_AGENT_ENABLE, SKYWALKING_AGENT_LOG_FILE, SKYWALKING_AGENT_LOG_LEVEL,
+    SKYWALKING_AGENT_SERVICE_NAME,
 };
 use ipc_channel::ipc::IpcSharedMemory;
-use once_cell::sync::{Lazy, OnceCell};
+use once_cell::sync::Lazy;
 use phper::{ini::Ini, modules::ModuleContext, sys};
+use skywalking_rust::common::random_generator::RandomGenerator;
 use std::{
     ffi::CStr,
     intrinsics::transmute,
@@ -27,6 +29,12 @@ use std::{
 use tracing::{error, metadata::LevelFilter};
 use tracing_subscriber::FmtSubscriber;
 
+pub static SERVICE_NAME: Lazy<String> =
+    Lazy::new(|| Ini::get::<String>(SKYWALKING_AGENT_SERVICE_NAME).unwrap_or_default());
+
+pub static SERVICE_INSTANCE: Lazy<String> =
+    Lazy::new(|| RandomGenerator::generate() + "@" + &IPS[0]);
+
 pub fn init(_module: ModuleContext) -> bool {
     // Now only support in FPM mode.
     if get_sapi_module_name().to_bytes() != b"fpm-fcgi" {
@@ -35,15 +43,23 @@ pub fn init(_module: ModuleContext) -> bool {
 
     let enable = Ini::get::<bool>(SKYWALKING_AGENT_ENABLE).unwrap_or_default();
     if enable {
+        let _ = SERVICE_NAME;
+        let _ = SERVICE_INSTANCE;
+
         init_logger();
+
         get_ready_for_request();
+
         if let Err(e) = init_channel() {
             error!("Init channel failed: {}", e);
             return true;
         }
+
         register_execute_functions();
+
         init_reporter();
     }
+
     true
 }
 

@@ -1,20 +1,25 @@
+// Copyright (c) 2022 jmjoy
+// Helper is licensed under Mulan PSL v2.
+// You can use this software according to the terms and conditions of the Mulan
+// PSL v2. You may obtain a copy of Mulan PSL v2 at:
+//          http://license.coscl.org.cn/MulanPSL2
+// THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY
+// KIND, EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO
+// NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+// See the Mulan PSL v2 for more details.
+
 use crate::SKYWALKING_AGENT_MAX_MESSAGE_LENGTH;
 use anyhow::{anyhow, bail, Context};
 use crossbeam_utils::atomic::AtomicCell;
-use ipc_channel::ipc::{
-    self, IpcBytesReceiver, IpcBytesSender, IpcReceiver, IpcSender, IpcSharedMemory,
-};
-use once_cell::sync::{Lazy, OnceCell};
+use ipc_channel::ipc::{self, IpcBytesReceiver, IpcBytesSender, IpcSharedMemory};
+use once_cell::sync::OnceCell;
 use phper::ini::Ini;
-use skywalking_rust::skywalking_proto::v3::SegmentObject;
 use std::{
-    cell::RefCell,
-    intrinsics::transmute,
     mem::size_of,
     sync::{
         atomic::{AtomicUsize, Ordering},
         Mutex,
-    },
+    }, intrinsics::transmute,
 };
 use tracing::debug;
 

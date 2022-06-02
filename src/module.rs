@@ -9,11 +9,11 @@
 // See the Mulan PSL v2 for more details.
 
 use crate::{
-    execute::register_execute_functions, report::init_reporter, SKYWALKING_AGENT_ENABLE,
-    SKYWALKING_AGENT_LOG_FILE, SKYWALKING_AGENT_LOG_LEVEL,
+    channel::init_channel, execute::register_execute_functions, report::init_reporter,
+    SKYWALKING_AGENT_ENABLE, SKYWALKING_AGENT_LOG_FILE, SKYWALKING_AGENT_LOG_LEVEL,
 };
 use ipc_channel::ipc::IpcSharedMemory;
-use once_cell::sync::OnceCell;
+use once_cell::sync::{Lazy, OnceCell};
 use phper::{ini::Ini, modules::ModuleContext, sys};
 use std::{
     ffi::CStr,
@@ -24,7 +24,7 @@ use std::{
     str::FromStr,
     sync::atomic::{AtomicBool, Ordering},
 };
-use tracing::metadata::LevelFilter;
+use tracing::{error, metadata::LevelFilter};
 use tracing_subscriber::FmtSubscriber;
 
 pub fn init(_module: ModuleContext) -> bool {
@@ -37,6 +37,10 @@ pub fn init(_module: ModuleContext) -> bool {
     if enable {
         init_logger();
         get_ready_for_request();
+        if let Err(e) = init_channel() {
+            error!("Init channel failed: {}", e);
+            return true;
+        }
         register_execute_functions();
         init_reporter();
     }
@@ -57,12 +61,11 @@ pub fn mark_ready_for_request() {
 
 /// Share memory to store is ready for request tag.
 fn get_ready_for_request() -> &'static AtomicBool {
-    static READY_FOR_REQUEST: OnceCell<IpcSharedMemory> = OnceCell::new();
-    let ready = READY_FOR_REQUEST.get_or_init(|| {
+    static READY_FOR_REQUEST: Lazy<IpcSharedMemory> = Lazy::new(|| {
         let b: [u8; size_of::<AtomicBool>()] = unsafe { transmute(AtomicBool::new(false)) };
         IpcSharedMemory::from_bytes(&b)
     });
-    let ready: &[u8] = ready.deref();
+    let ready: &[u8] = READY_FOR_REQUEST.deref();
     let ready = ready.as_ptr() as *const AtomicBool;
     unsafe { ready.as_ref().unwrap() }
 }

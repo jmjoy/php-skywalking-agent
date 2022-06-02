@@ -23,13 +23,14 @@ unsafe extern "C" fn execute_internal(
     execute_data: *mut sys::zend_execute_data, return_value: *mut sys::zval,
 ) {
     if !is_ready_for_request() {
-        ori_execute_internal(execute_data, return_value);
+        raw_ori_execute_internal(execute_data, return_value);
         return;
     }
 
-    let execute = ExecuteData::from_mut_ptr(execute_data);
+    let execute_data = ExecuteData::from_mut_ptr(execute_data);
+    let return_value = Val::from_mut_ptr(return_value);
 
-    let function = execute.func();
+    let function = execute_data.func();
     let function_name = function.get_name();
     let function_name = match function_name.as_str() {
         Ok(function_name) => function_name,
@@ -51,23 +52,27 @@ unsafe extern "C" fn execute_internal(
     let plugin = select_plugin(class_name, function_name);
 
     if let Some(plugin) = plugin {
-        plugin.before_execute(execute, class_name, function_name);
-    }
-
-    ori_execute_internal(execute_data, return_value);
-
-    if let Some(plugin) = plugin {
-        plugin.after_execute(
-            execute,
-            Val::from_mut_ptr(return_value),
+        plugin.execute(
+            ori_execute_internal,
+            execute_data,
+            return_value,
             class_name,
             function_name,
         );
+    } else {
+        ori_execute_internal(execute_data, return_value);
     }
 }
 
+pub type ExecuteInternal = fn(execute_data: &mut ExecuteData, return_value: &mut Val);
+
 #[inline]
-unsafe fn ori_execute_internal(
+fn ori_execute_internal(execute_data: &mut ExecuteData, return_value: &mut Val) {
+    unsafe { raw_ori_execute_internal(execute_data.as_mut_ptr(), return_value.as_mut_ptr()) }
+}
+
+#[inline]
+unsafe fn raw_ori_execute_internal(
     execute_data: *mut sys::zend_execute_data, return_value: *mut sys::zval,
 ) {
     match ORI_EXECUTE_INTERNAL {

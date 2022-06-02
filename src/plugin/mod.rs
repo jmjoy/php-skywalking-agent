@@ -10,6 +10,7 @@
 
 mod curl;
 
+use crate::execute::ExecuteInternal;
 use once_cell::sync::OnceCell;
 use phper::values::{ExecuteData, Val};
 
@@ -18,16 +19,10 @@ pub trait Plugin {
 
     fn function_name_prefix(&self) -> Option<&'static str>;
 
-    fn before_execute(
-        &self, execute_data: &mut ExecuteData, class_name: Option<&str>, function_name: &str,
+    fn execute(
+        &self, execute_internal: ExecuteInternal, execute_data: &mut ExecuteData,
+        return_value: &mut Val, class_name: Option<&str>, function_name: &str,
     );
-
-    #[allow(unused_variables)]
-    fn after_execute(
-        &self, execute_data: &mut ExecuteData, return_value: &mut Val, class_name: Option<&str>,
-        function_name: &str,
-    ) {
-    }
 }
 
 pub type DynPlugin = dyn Plugin + Send + Sync + 'static;

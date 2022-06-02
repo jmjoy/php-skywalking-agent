@@ -327,6 +327,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "dashmap"
+version = "5.3.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3495912c9c1ccf2e18976439f4443f3fee0fd61f424ff99fde6a66b15ecb448f"
+dependencies = [
+ "cfg-if 1.0.0",
+ "hashbrown 0.12.1",
+ "lock_api",
+ "parking_lot_core",
+]
+
+[[package]]
 name = "derive_more"
 version = "0.99.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -378,6 +390,16 @@ name = "fnv"
 version = "1.0.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3f9eec918d3f24069decb9af1554cad7c880e2da24a9afd88aca000531ab82c1"
+
+[[package]]
+name = "form_urlencoded"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5fc25a87fa4fd2094bffb06925852034d90a17f0d1e05197d4956d3555752191"
+dependencies = [
+ "matches",
+ "percent-encoding",
+]
 
 [[package]]
 name = "fuchsia-zircon"
@@ -488,6 +510,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ab5ef0d4909ef3724cc8cce6ccc8572c5c817592e9285f5464f8e86f8bd3726e"
 
 [[package]]
+name = "hashbrown"
+version = "0.12.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "db0d4cf898abf0081f964436dc980e96670a0f36863e4b83aaacdb65c9d7ccc3"
+
+[[package]]
 name = "heck"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -585,13 +613,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "idna"
+version = "0.2.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "418a0a6fab821475f634efe3ccc45c013f742efe03d853e8d3355d5cb850ecf8"
+dependencies = [
+ "matches",
+ "unicode-bidi",
+ "unicode-normalization",
+]
+
+[[package]]
 name = "indexmap"
 version = "1.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e6012d540c5baa3589337a98ce73408de9b5a25ec9fc2c6fd6be8f0d39e0ca5a"
 dependencies = [
  "autocfg",
- "hashbrown",
+ "hashbrown 0.11.2",
 ]
 
 [[package]]
@@ -702,6 +741,12 @@ checksum = "abb12e687cfb44aa40f41fc3978ef76448f9b6038cad6aef4259d3c095a2382e"
 dependencies = [
  "cfg-if 1.0.0",
 ]
+
+[[package]]
+name = "matches"
+version = "0.1.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a3e378b66a060d48947b590737b30a1be76706c8dd7b8ba0f2fe3989c68a853f"
 
 [[package]]
 name = "matchit"
@@ -878,6 +923,9 @@ name = "php-skywalking-agent"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "async-stream",
+ "crossbeam-utils 0.8.8",
+ "dashmap 5.3.4",
  "ipc-channel",
  "once_cell",
  "phper",
@@ -887,16 +935,17 @@ dependencies = [
  "tracing",
  "tracing-appender",
  "tracing-subscriber",
+ "url",
 ]
 
 [[package]]
 name = "phper"
 version = "0.4.0-alpha.1"
-source = "git+https://github.com/jmjoy/phper?branch=0.4.x-dev#a86b16514c598fb95355cf6328fad89f2dbf10a7"
+source = "git+https://github.com/jmjoy/phper?branch=0.4.x-dev#245cfef53769af5d9d40e7b0698aa6de0c0434a3"
 dependencies = [
  "anyhow",
  "clap 3.1.18",
- "dashmap",
+ "dashmap 4.0.2",
  "derive_more",
  "indexmap",
  "once_cell",
@@ -910,7 +959,7 @@ dependencies = [
 [[package]]
 name = "phper-alloc"
 version = "0.4.0-alpha.1"
-source = "git+https://github.com/jmjoy/phper?branch=0.4.x-dev#a86b16514c598fb95355cf6328fad89f2dbf10a7"
+source = "git+https://github.com/jmjoy/phper?branch=0.4.x-dev#245cfef53769af5d9d40e7b0698aa6de0c0434a3"
 dependencies = [
  "phper-build",
  "phper-sys",
@@ -919,7 +968,7 @@ dependencies = [
 [[package]]
 name = "phper-build"
 version = "0.4.0-alpha.1"
-source = "git+https://github.com/jmjoy/phper?branch=0.4.x-dev#a86b16514c598fb95355cf6328fad89f2dbf10a7"
+source = "git+https://github.com/jmjoy/phper?branch=0.4.x-dev#245cfef53769af5d9d40e7b0698aa6de0c0434a3"
 dependencies = [
  "phper-sys",
 ]
@@ -927,7 +976,7 @@ dependencies = [
 [[package]]
 name = "phper-macros"
 version = "0.4.0-alpha.1"
-source = "git+https://github.com/jmjoy/phper?branch=0.4.x-dev#a86b16514c598fb95355cf6328fad89f2dbf10a7"
+source = "git+https://github.com/jmjoy/phper?branch=0.4.x-dev#245cfef53769af5d9d40e7b0698aa6de0c0434a3"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -937,7 +986,7 @@ dependencies = [
 [[package]]
 name = "phper-sys"
 version = "0.4.0-alpha.1"
-source = "git+https://github.com/jmjoy/phper?branch=0.4.x-dev#a86b16514c598fb95355cf6328fad89f2dbf10a7"
+source = "git+https://github.com/jmjoy/phper?branch=0.4.x-dev#245cfef53769af5d9d40e7b0698aa6de0c0434a3"
 dependencies = [
  "bindgen",
  "cc",
@@ -1254,7 +1303,7 @@ dependencies = [
 [[package]]
 name = "skywalking_rust"
 version = "0.1.0"
-source = "git+https://github.com/jmjoy/skywalking-rust.git#7236636d15ab914a04e2962b110dbaa45063263c"
+source = "git+https://github.com/jmjoy/skywalking-rust.git?branch=hack#4bb963d26b0b7cdb7e1e9b3ca95de1b633835aa0"
 dependencies = [
  "async-stream",
  "base64",
@@ -1395,6 +1444,21 @@ dependencies = [
  "libc",
  "num_threads",
 ]
+
+[[package]]
+name = "tinyvec"
+version = "1.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "87cc5ceb3875bb20c2890005a4e226a4651264a5c75edb2421b52861a0a0cb50"
+dependencies = [
+ "tinyvec_macros",
+]
+
+[[package]]
+name = "tinyvec_macros"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cda74da7e1a664f795bb1f8a87ec406fb89a02522cf6e50620d016add6dbbf5c"
 
 [[package]]
 name = "tokio"
@@ -1645,16 +1709,43 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "59547bce71d9c38b83d9c0e92b6066c4253371f15005def0c30d9657f50c7642"
 
 [[package]]
+name = "unicode-bidi"
+version = "0.3.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "099b7128301d285f79ddd55b9a83d5e6b9e97c92e0ea0daebee7263e932de992"
+
+[[package]]
 name = "unicode-ident"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d22af068fba1eb5edcb4aea19d382b2a3deb4c8f9d475c589b6ada9e0fd493ee"
 
 [[package]]
+name = "unicode-normalization"
+version = "0.1.19"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d54590932941a9e9266f0832deed84ebe1bf2e4c9e4a3554d393d18f5e854bf9"
+dependencies = [
+ "tinyvec",
+]
+
+[[package]]
 name = "unicode-width"
 version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3ed742d4ea2bd1176e236172c8429aaf54486e7ac098db29ffe6529e0ce50973"
+
+[[package]]
+name = "url"
+version = "2.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a507c383b2d33b5fc35d1861e77e6b383d158b2da5e14fe51b83dfedf6fd578c"
+dependencies = [
+ "form_urlencoded",
+ "idna",
+ "matches",
+ "percent-encoding",
+]
 
 [[package]]
 name = "uuid"

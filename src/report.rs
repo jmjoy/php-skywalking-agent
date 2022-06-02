@@ -9,11 +9,20 @@
 // See the Mulan PSL v2 for more details.
 
 use crate::{
-    module::mark_ready_for_request, SKYWALKING_AGENT_SERVER_ADDR, SKYWALKING_AGENT_SERVICE_NAME,
-    SKYWALKING_AGENT_WORKER_THREADS,
+    channel::channel_receive, module::mark_ready_for_request, SKYWALKING_AGENT_SERVER_ADDR,
+    SKYWALKING_AGENT_SERVICE_NAME, SKYWALKING_AGENT_WORKER_THREADS,
 };
+use anyhow::Context;
 use phper::ini::Ini;
-use skywalking_rust::skywalking_proto::v3::trace_segment_report_service_client::TraceSegmentReportServiceClient;
+use skywalking_rust::{
+    common::random_generator::RandomGenerator,
+    context::trace_context::TracingContext,
+    skywalking_proto::v3::{
+        management_service_client::ManagementServiceClient,
+        trace_segment_report_service_client::TraceSegmentReportServiceClient, InstanceProperties,
+        KeyStringValuePair, SegmentObject,
+    },
+};
 use std::{
     num::NonZeroUsize,
     thread::{self, available_parallelism},
@@ -51,7 +60,8 @@ fn new_tokio_runtime() -> Runtime {
         .unwrap()
 }
 
-async fn start_reporter(server_addr: String, _service_name: String) {
+#[tracing::instrument(skip_all)]
+async fn start_reporter(server_addr: String, service_name: String) {
     debug!("Starting reporter...");
 
     let f = async move {
@@ -72,12 +82,52 @@ async fn start_reporter(server_addr: String, _service_name: String) {
         info!("Skywalking server connected.");
         mark_ready_for_request();
 
-        let _client = TraceSegmentReportServiceClient::new(channel);
+        let mut report_client = TraceSegmentReportServiceClient::new(channel.clone());
+        let mut manage_client = ManagementServiceClient::new(channel);
+
+        let service_instance = RandomGenerator::generate();
+        let properties = InstanceProperties {
+            service: service_name.clone(),
+            service_instance: service_instance.clone(),
+            properties: vec![KeyStringValuePair {
+                key: "os_name".to_owned(),
+                value: "linux".to_owned(),
+            }],
+            layer: "".to_string(),
+        };
+        debug!("Report instance properties={:?}", &properties);
+        manage_client.report_instance_properties(properties).await?;
+
+        let mut ctx = TracingContext::default(&service_name, &service_instance);
+        let span = ctx.create_entry_span("begin").unwrap();
+        ctx.finalize_span(span);
+
+        let segment_object = ctx.convert_segment_object();
+        let stream = async_stream::stream! { yield segment_object; };
+        report_client.collect(stream).await?;
+
+        receive_and_trace().await;
 
         Ok::<_, anyhow::Error>(())
     };
 
     if let Err(e) = f.await {
         error!("Start reporter failed: {}", e);
+    }
+}
+
+#[tracing::instrument(skip_all)]
+async fn receive_and_trace() {
+    loop {
+        let f = async move {
+            let data = channel_receive()?;
+            warn!("channel receive: {:?}", String::from_utf8(data));
+            Ok::<_, anyhow::Error>(())
+        };
+
+        if let Err(e) = f.await {
+            error!("Start reporter failed: {}", e);
+            sleep(Duration::from_secs(10)).await;
+        }
     }
 }

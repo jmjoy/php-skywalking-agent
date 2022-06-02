@@ -12,6 +12,7 @@
 #![warn(clippy::dbg_macro, clippy::print_stdout)]
 #![doc = include_str!("../README.md")]
 
+mod channel;
 mod execute;
 mod module;
 mod plugin;
@@ -45,6 +46,9 @@ const SKYWALKING_AGENT_LOG_LEVEL: &str = "skywalking_agent.log_level";
 /// Log file of skywalking agent.
 const SKYWALKING_AGENT_LOG_FILE: &str = "skywalking_agent.log_file";
 
+/// Max message length to report to skywalking.
+const SKYWALKING_AGENT_MAX_MESSAGE_LENGTH: &str = "skywalking_agent.max_message_length";
+
 #[php_get_module]
 pub fn get_module() -> Module {
     let mut module = Module::new(
@@ -75,6 +79,11 @@ pub fn get_module() -> Module {
     Ini::add(
         SKYWALKING_AGENT_LOG_FILE,
         "/tmp/skywalking_agent.log".to_string(),
+        Policy::System,
+    );
+    Ini::add(
+        SKYWALKING_AGENT_MAX_MESSAGE_LENGTH,
+        81920i64,
         Policy::System,
     );
 

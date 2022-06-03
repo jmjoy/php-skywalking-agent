@@ -13,6 +13,7 @@
 #![doc = include_str!("../README.md")]
 
 mod channel;
+mod component;
 mod execute;
 mod module;
 mod plugin;

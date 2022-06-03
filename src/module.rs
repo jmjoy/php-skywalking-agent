@@ -26,7 +26,7 @@ use std::{
     str::FromStr,
     sync::atomic::{AtomicBool, Ordering},
 };
-use tracing::{error, metadata::LevelFilter};
+use tracing::{error, info, metadata::LevelFilter};
 use tracing_subscriber::FmtSubscriber;
 
 pub static SERVICE_NAME: Lazy<String> =
@@ -43,9 +43,6 @@ pub fn init(_module: ModuleContext) -> bool {
 
     let enable = Ini::get::<bool>(SKYWALKING_AGENT_ENABLE).unwrap_or_default();
     if enable {
-        let _ = SERVICE_NAME;
-        let _ = SERVICE_INSTANCE;
-
         init_logger();
 
         get_ready_for_request();
@@ -56,6 +53,10 @@ pub fn init(_module: ModuleContext) -> bool {
         }
 
         register_execute_functions();
+
+        let service_name = SERVICE_NAME.as_str();
+        let service_instance = SERVICE_INSTANCE.as_str();
+        info!(service_name, service_instance, "Starting skywalking agent");
 
         init_reporter();
     }

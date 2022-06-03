@@ -10,22 +10,28 @@
 
 use crate::SKYWALKING_AGENT_MAX_MESSAGE_LENGTH;
 use anyhow::{anyhow, bail, Context};
-use crossbeam_utils::atomic::AtomicCell;
 use ipc_channel::ipc::{self, IpcBytesReceiver, IpcBytesSender, IpcSharedMemory};
-use once_cell::sync::OnceCell;
+use once_cell::sync::{Lazy, OnceCell};
 use phper::ini::Ini;
 use std::{
+    intrinsics::transmute,
     mem::size_of,
     sync::{
         atomic::{AtomicUsize, Ordering},
         Mutex,
-    }, intrinsics::transmute,
+    },
 };
-use tracing::debug;
+use tracing::{debug, info};
 
 const MAX_COUNT: usize = 100;
 
-static MAX_LENGTH: AtomicCell<usize> = AtomicCell::new(0);
+pub static MAX_LENGTH: Lazy<usize> = Lazy::new(|| {
+    let mut max_length = Ini::get::<i64>(SKYWALKING_AGENT_MAX_MESSAGE_LENGTH).unwrap_or(0) as usize;
+    if max_length <= 0 {
+        max_length = usize::MAX;
+    }
+    max_length
+});
 
 static SENDER: OnceCell<Mutex<IpcBytesSender>> = OnceCell::new();
 static RECEIVER: OnceCell<Mutex<IpcBytesReceiver>> = OnceCell::new();
@@ -33,15 +39,14 @@ static RECEIVER: OnceCell<Mutex<IpcBytesReceiver>> = OnceCell::new();
 pub fn init_channel() -> anyhow::Result<()> {
     get_count()?;
 
-    let mut max_length = Ini::get::<i64>(SKYWALKING_AGENT_MAX_MESSAGE_LENGTH).unwrap_or(0) as usize;
-    if max_length <= 0 {
-        max_length = usize::MAX;
-    }
-    MAX_LENGTH.store(max_length);
+    let max_length = *MAX_LENGTH;
+    info!(max_length, "The max length of report body");
 
     let channel = ipc::bytes_channel()?;
+
     let result = SENDER.set(Mutex::new(channel.0));
     result.map_err(|_| anyhow!("Channel has initialized"))?;
+
     let result = RECEIVER.set(Mutex::new(channel.1));
     result.map_err(|_| anyhow!("Channel has initialized"))
 }
@@ -60,7 +65,7 @@ fn get_count() -> anyhow::Result<&'static AtomicUsize> {
 }
 
 pub fn channel_send(data: &[u8]) -> anyhow::Result<()> {
-    if data.len() > MAX_LENGTH.load() {
+    if data.len() > *MAX_LENGTH {
         bail!("Send data is too big");
     }
 

@@ -66,7 +66,7 @@ async fn start_reporter(server_addr: String, service_name: String) {
     debug!("Starting reporter...");
 
     let f = async move {
-        let endpoint = Endpoint::from_shared(server_addr)?;
+        let endpoint = Endpoint::from_shared(server_addr.clone())?;
         let channel = loop {
             match endpoint.connect().await {
                 Ok(channel) => break channel,
@@ -80,7 +80,7 @@ async fn start_reporter(server_addr: String, service_name: String) {
             }
         };
 
-        info!("Skywalking server connected.");
+        info!(server_addr = &*server_addr, "Skywalking server connected");
         mark_ready_for_request();
 
         let mut report_client = TraceSegmentReportServiceClient::new(channel.clone());

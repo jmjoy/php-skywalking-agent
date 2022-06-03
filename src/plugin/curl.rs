@@ -8,9 +8,8 @@
 // NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 // See the Mulan PSL v2 for more details.
 
-use crate::{execute::ExecuteInternal, request::get_tracing_context};
-
 use super::Plugin;
+use crate::{execute::ExecuteInternal, request::TRACING_CONTEXT_MAP};
 use anyhow::Context;
 use phper::{
     functions::call,
@@ -54,10 +53,17 @@ impl CurlPlugin {
         return_value: &mut Val,
     ) {
         if unsafe { execute_data.num_args() } < 1 {
+            execute_internal(execute_data, return_value);
             return;
         }
 
-        let mut ctx = get_tracing_context(0);
+        let mut ctx = match TRACING_CONTEXT_MAP.get_mut(&0) {
+            Some(ctx) => ctx,
+            None => {
+                execute_internal(execute_data, return_value);
+                return;
+            }
+        };
 
         let mut f = || {
             let ch = execute_data.get_parameter(1);
@@ -101,7 +107,7 @@ impl CurlPlugin {
                     return Ok(None);
                 }
             };
-            span.set_component_id(PHP_CURL_COMPONENT_ID);
+            span.span_object_mut().component_id = PHP_CURL_COMPONENT_ID;
             span.add_tag(("url", raw_url));
 
             Ok::<_, anyhow::Error>(Some(span))

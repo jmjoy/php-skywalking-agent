@@ -10,11 +10,12 @@
 
 use crate::{
     channel::channel_receive,
-    module::{mark_ready_for_request, SERVICE_NAME},
+    module::{mark_ready_for_request, SERVICE_INSTANCE, SERVICE_NAME},
     SKYWALKING_AGENT_SERVER_ADDR, SKYWALKING_AGENT_SERVICE_NAME, SKYWALKING_AGENT_WORKER_THREADS,
 };
 use anyhow::Context;
 use phper::ini::Ini;
+use prost::Message;
 use skywalking_rust::{
     common::random_generator::RandomGenerator,
     context::trace_context::TracingContext,
@@ -33,16 +34,18 @@ use tokio::{
     runtime::{self, Runtime},
     time::sleep,
 };
-use tonic::transport::Endpoint;
+use tonic::{
+    transport::{Channel, Endpoint},
+    IntoRequest,
+};
 use tracing::{debug, error, info, warn};
 
 pub fn init_reporter() {
     let server_addr = Ini::get::<String>(SKYWALKING_AGENT_SERVER_ADDR).unwrap_or_default();
-    let service_name = SERVICE_NAME.clone();
 
     thread::spawn(move || {
         let rt = new_tokio_runtime();
-        rt.block_on(start_reporter(server_addr, service_name));
+        rt.block_on(start_reporter(server_addr));
     });
 }
 
@@ -62,7 +65,7 @@ fn new_tokio_runtime() -> Runtime {
 }
 
 #[tracing::instrument(skip_all)]
-async fn start_reporter(server_addr: String, service_name: String) {
+async fn start_reporter(server_addr: String) {
     debug!("Starting reporter...");
 
     let f = async move {
@@ -83,31 +86,8 @@ async fn start_reporter(server_addr: String, service_name: String) {
         info!(server_addr = &*server_addr, "Skywalking server connected");
         mark_ready_for_request();
 
-        let mut report_client = TraceSegmentReportServiceClient::new(channel.clone());
-        let mut manage_client = ManagementServiceClient::new(channel);
-
-        let service_instance = RandomGenerator::generate();
-        let properties = InstanceProperties {
-            service: service_name.clone(),
-            service_instance: service_instance.clone(),
-            properties: vec![KeyStringValuePair {
-                key: "os_name".to_owned(),
-                value: "linux".to_owned(),
-            }],
-            layer: "".to_string(),
-        };
-        debug!("Report instance properties={:?}", &properties);
-        manage_client.report_instance_properties(properties).await?;
-
-        let mut ctx = TracingContext::default(&service_name, &service_instance);
-        let span = ctx.create_entry_span("begin").unwrap();
-        ctx.finalize_span(span);
-
-        let segment_object = ctx.convert_segment_object();
-        let stream = async_stream::stream! { yield segment_object; };
-        report_client.collect(stream).await?;
-
-        receive_and_trace().await;
+        report_instance_properties(channel.clone()).await;
+        receive_and_trace(channel).await;
 
         Ok::<_, anyhow::Error>(())
     };
@@ -118,16 +98,63 @@ async fn start_reporter(server_addr: String, service_name: String) {
 }
 
 #[tracing::instrument(skip_all)]
-async fn receive_and_trace() {
+async fn report_instance_properties(channel: Channel) {
+    let mut manage_client = ManagementServiceClient::new(channel);
+
     loop {
-        let f = async move {
+        let properties = vec![KeyStringValuePair {
+            key: "os_name".to_owned(),
+            value: "linux".to_owned(),
+        }];
+
+        let f = async {
+            let properties = InstanceProperties {
+                service: SERVICE_NAME.clone(),
+                service_instance: SERVICE_INSTANCE.clone(),
+                properties: properties.clone(),
+                layer: "".to_string(),
+            };
+            manage_client.report_instance_properties(properties).await?;
+
+            Ok::<_, anyhow::Error>(())
+        };
+
+        match f.await {
+            Ok(()) => {
+                debug!("Report instance properties, properties: {:?}", properties);
+                break;
+            }
+            Err(e) => {
+                warn!("Report instance properties failed, retry after 10s: {}", e);
+                sleep(Duration::from_secs(10)).await;
+            }
+        }
+    }
+}
+
+#[tracing::instrument(skip_all)]
+async fn receive_and_trace(channel: Channel) {
+    let mut report_client = TraceSegmentReportServiceClient::new(channel);
+
+    loop {
+        let f = async {
             let data = channel_receive()?;
-            warn!("channel receive: {:?}", String::from_utf8(data));
+            debug!(length = data.len(), "channel received");
+
+            // TODO Send raw data to avoid encode and decode again.
+            let segment: SegmentObject = Message::decode(&*data)?;
+            warn!("Segment: {:?}", &segment);
+            report_client
+                .collect(tokio_stream::iter(vec![segment]))
+                .await?;
+
+            warn!("Collected");
+
             Ok::<_, anyhow::Error>(())
         };
 
         if let Err(e) = f.await {
-            error!("Start reporter failed: {}", e);
+            error!("Receive and trace failed: {}", e);
             sleep(Duration::from_secs(10)).await;
         }
     }

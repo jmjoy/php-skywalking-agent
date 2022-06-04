@@ -8,15 +8,20 @@
 // NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 // See the Mulan PSL v2 for more details.
 
+use std::any;
+
 use super::Plugin;
-use crate::{execute::ExecuteInternal, request::TRACING_CONTEXT_MAP};
-use anyhow::Context;
+use crate::{
+    execute::ExecuteInternal,
+    request::{current_tracing_context, TRACING_CONTEXT_MAP},
+};
+use anyhow::{anyhow, Context};
 use phper::{
     functions::call,
     sys,
     values::{ExecuteData, Val},
 };
-use tracing::{debug, error};
+use tracing::{debug, error, warn};
 use url::Url;
 
 const PHP_CURL_COMPONENT_ID: i32 = 8002;
@@ -57,23 +62,15 @@ impl CurlPlugin {
             return;
         }
 
-        let mut ctx = match TRACING_CONTEXT_MAP.get_mut(&0) {
-            Some(ctx) => ctx,
-            None => {
-                execute_internal(execute_data, return_value);
-                return;
-            }
-        };
-
         let mut f = || {
             let ch = execute_data.get_parameter(1);
             let mut arguments = [ch.clone()];
-            let result = call("curl_getinfo", &mut arguments).context("call curl_get_info")?;
+            let result = call("curl_getinfo", &mut arguments).context("Call curl_get_info")?;
             let result = result.as_array()?;
 
             let url = result
                 .get("url")
-                .context("get url from curl_get_info result")?;
+                .context("Get url from curl_get_info result")?;
             let raw_url = url.as_str()?;
             let mut url = raw_url.to_string();
 
@@ -84,7 +81,7 @@ impl CurlPlugin {
             }
 
             let url: Url = url.parse()?;
-            if url.scheme() == "http" || url.scheme() == "https" {
+            if url.scheme() != "http" && url.scheme() != "https" {
                 return Ok(None);
             }
             let host = match url.host_str() {
@@ -100,13 +97,9 @@ impl CurlPlugin {
                 },
             };
 
-            let mut span = match ctx.create_exit_span(url.path(), &format!("{host}:{port}")) {
-                Ok(span) => span,
-                Err(e) => {
-                    error!("create exit span: {}", e);
-                    return Ok(None);
-                }
-            };
+            let mut span = current_tracing_context()?
+                .create_exit_span(url.path(), &format!("{host}:{port}"))
+                .map_err(|e| anyhow!("Create exit span failed: {}", e))?;
             span.span_object_mut().component_id = PHP_CURL_COMPONENT_ID;
             span.add_tag(("url", raw_url));
 
@@ -121,7 +114,14 @@ impl CurlPlugin {
         execute_internal(execute_data, return_value);
 
         if let Ok(Some(span)) = result {
-            ctx.finalize_span(span);
+            let f = || {
+                warn!("Span: {:?}", span);
+                current_tracing_context()?.finalize_span(span);
+                Ok::<_, anyhow::Error>(())
+            };
+            if let Err(e) = f() {
+                error!("{}", e);
+            }
         }
     }
 }

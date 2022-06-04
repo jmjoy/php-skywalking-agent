@@ -103,6 +103,7 @@ fn init_logger() {
                     let file_appender = tracing_appender::rolling::never(dir, file_name);
                     let subscriber = FmtSubscriber::builder()
                         .with_max_level(log_level)
+                        .with_ansi(false)
                         .with_writer(file_appender)
                         .finish();
 

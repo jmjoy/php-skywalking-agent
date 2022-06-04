@@ -69,7 +69,7 @@ pub fn get_module() -> Module {
     );
     Ini::add(
         SKYWALKING_AGENT_SERVICE_NAME,
-        "hello_skywalking".to_string(),
+        "hello-skywalking".to_string(),
         Policy::System,
     );
     Ini::add(SKYWALKING_AGENT_WORKER_THREADS, 0i64, Policy::System);

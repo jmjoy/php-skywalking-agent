@@ -192,3 +192,9 @@ fn get_page_request_server<'a>() -> anyhow::Result<&'a Array> {
         Ok(carrier)
     }
 }
+
+pub fn current_tracing_context() -> anyhow::Result<RefMut<'static, u64, TracingContext>> {
+    TRACING_CONTEXT_MAP
+        .get_mut(&0)
+        .context("Current tracing context not exists")
+}

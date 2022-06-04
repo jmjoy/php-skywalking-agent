@@ -976,8 +976,6 @@ name = "php-skywalking-agent"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "async-stream",
- "crossbeam-utils 0.8.8",
  "dashmap 5.3.4",
  "ipc-channel",
  "once_cell",
@@ -986,6 +984,7 @@ dependencies = [
  "skywalking_rust",
  "systemstat",
  "tokio",
+ "tokio-stream",
  "tonic",
  "tracing",
  "tracing-appender",
@@ -1358,7 +1357,7 @@ dependencies = [
 [[package]]
 name = "skywalking_rust"
 version = "0.1.0"
-source = "git+https://github.com/jmjoy/skywalking-rust.git?branch=hack#6b5e39745f8d3fd1e7b51e91f1fbca17ae7ee5dd"
+source = "git+https://github.com/jmjoy/skywalking-rust.git?branch=hack#b551b66d814485ce0a0ed09d640c43c2210d7558"
 dependencies = [
  "async-stream",
  "base64",

@@ -1014,8 +1014,9 @@ dependencies = [
 
 [[package]]
 name = "phper"
-version = "0.4.0-alpha.1"
-source = "git+https://github.com/jmjoy/phper?branch=0.4.x-dev#7d141c3b40cefc926b0422a4079856082400121b"
+version = "0.4.0-alpha.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "005de0417c6880af7e9ccc04ab32e9dc8a9b5af98c74d21e9596ad68d69b1795"
 dependencies = [
  "anyhow",
  "clap 3.1.18",
@@ -1032,8 +1033,9 @@ dependencies = [
 
 [[package]]
 name = "phper-alloc"
-version = "0.4.0-alpha.1"
-source = "git+https://github.com/jmjoy/phper?branch=0.4.x-dev#7d141c3b40cefc926b0422a4079856082400121b"
+version = "0.4.0-alpha.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e4302255d59824aa456b5173d59bd7021dd74c68586c3197b0284830371a9e1b"
 dependencies = [
  "phper-build",
  "phper-sys",
@@ -1041,16 +1043,18 @@ dependencies = [
 
 [[package]]
 name = "phper-build"
-version = "0.4.0-alpha.1"
-source = "git+https://github.com/jmjoy/phper?branch=0.4.x-dev#7d141c3b40cefc926b0422a4079856082400121b"
+version = "0.4.0-alpha.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e35cb8f875df164e8a99ffa68aceb8dee858fec89154567a1b3d2cf39f1131b6"
 dependencies = [
  "phper-sys",
 ]
 
 [[package]]
 name = "phper-macros"
-version = "0.4.0-alpha.1"
-source = "git+https://github.com/jmjoy/phper?branch=0.4.x-dev#7d141c3b40cefc926b0422a4079856082400121b"
+version = "0.4.0-alpha.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "afc9265040ad52c5b9ada2952d95c83487813c741e42402e357a5290707e7ef7"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1059,8 +1063,9 @@ dependencies = [
 
 [[package]]
 name = "phper-sys"
-version = "0.4.0-alpha.1"
-source = "git+https://github.com/jmjoy/phper?branch=0.4.x-dev#7d141c3b40cefc926b0422a4079856082400121b"
+version = "0.4.0-alpha.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "72ccc9a8c89ed30e0579e69c1c0e1601f2a88aa3c1d7efbb94c13de76a32f6f5"
 dependencies = [
  "bindgen",
  "cc",

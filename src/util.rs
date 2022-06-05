@@ -8,6 +8,7 @@
 // NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 // See the Mulan PSL v2 for more details.
 
+use chrono::Local;
 use once_cell::sync::Lazy;
 use systemstat::{IpAddr, Platform, System};
 
@@ -47,3 +48,24 @@ pub static IPS: Lazy<Vec<String>> = Lazy::new(|| {
         })
         .unwrap_or_else(|| vec!["127.0.0.1".to_owned()])
 });
+
+pub static HOST_NAME: Lazy<String> = Lazy::new(|| {
+    hostname::get()
+        .ok()
+        .and_then(|hostname| hostname.into_string().ok())
+        .unwrap_or_else(|| "unknown".to_string())
+});
+
+pub const OS_NAME: &str = if cfg!(target_os = "linux") {
+    "Linux"
+} else if cfg!(target_os = "windows") {
+    "Windows"
+} else if cfg!(target_os = "macos") {
+    "Macos"
+} else {
+    "Unknown"
+};
+
+pub fn current_formatted_time() -> String {
+    Local::now().format("%Y-%m-%d %H:%M:%S").to_string()
+}

@@ -9,8 +9,9 @@
 // See the Mulan PSL v2 for more details.
 
 use crate::{
-    channel::channel_receive,
+    channel::{self, channel_receive},
     module::{mark_ready_for_request, SERVICE_INSTANCE, SERVICE_NAME},
+    util::{current_formatted_time, HOST_NAME, IPS, OS_NAME},
     SKYWALKING_AGENT_SERVER_ADDR, SKYWALKING_AGENT_SERVICE_NAME, SKYWALKING_AGENT_WORKER_THREADS,
 };
 use anyhow::Context;
@@ -27,8 +28,9 @@ use skywalking_rust::{
 };
 use std::{
     num::NonZeroUsize,
+    process,
     thread::{self, available_parallelism},
-    time::Duration,
+    time::{Duration, SystemTime},
 };
 use tokio::{
     runtime::{self, Runtime},
@@ -64,37 +66,41 @@ fn new_tokio_runtime() -> Runtime {
         .unwrap()
 }
 
-#[tracing::instrument(skip_all)]
 async fn start_reporter(server_addr: String) {
     debug!("Starting reporter...");
 
-    let f = async move {
-        let endpoint = Endpoint::from_shared(server_addr.clone())?;
-        let channel = loop {
-            match endpoint.connect().await {
-                Ok(channel) => break channel,
-                Err(e) => {
-                    warn!(
-                        "Connect to skywalking server failed, retry after 10s: {}",
-                        e
-                    );
-                    sleep(Duration::from_secs(10)).await;
-                }
+    let endpoint = match Endpoint::from_shared(server_addr) {
+        Ok(endpoint) => endpoint,
+        Err(e) => {
+            error!("Create endpoint failed: {}", e);
+            return;
+        }
+    };
+    let channel = connect(endpoint).await;
+    report_instance_properties(channel.clone()).await;
+    mark_ready_for_request();
+    receive_and_trace(channel).await;
+}
+
+#[tracing::instrument(skip_all)]
+async fn connect(endpoint: Endpoint) -> Channel {
+    let channel = loop {
+        match endpoint.connect().await {
+            Ok(channel) => break channel,
+            Err(e) => {
+                warn!(
+                    "Connect to skywalking server failed, retry after 10s: {}",
+                    e
+                );
+                sleep(Duration::from_secs(10)).await;
             }
-        };
-
-        info!(server_addr = &*server_addr, "Skywalking server connected");
-        mark_ready_for_request();
-
-        report_instance_properties(channel.clone()).await;
-        receive_and_trace(channel).await;
-
-        Ok::<_, anyhow::Error>(())
+        }
     };
 
-    if let Err(e) = f.await {
-        error!("Start reporter failed: {}", e);
-    }
+    let uri = &*endpoint.uri().to_string();
+    info!(uri, "Skywalking server connected");
+
+    channel
 }
 
 #[tracing::instrument(skip_all)]
@@ -102,25 +108,45 @@ async fn report_instance_properties(channel: Channel) {
     let mut manage_client = ManagementServiceClient::new(channel);
 
     loop {
-        let properties = vec![KeyStringValuePair {
-            key: "os_name".to_owned(),
-            value: "linux".to_owned(),
-        }];
+        let properties = vec![
+            KeyStringValuePair {
+                key: "language".to_owned(),
+                value: "php".to_owned(),
+            },
+            KeyStringValuePair {
+                key: "OS Name".to_owned(),
+                value: OS_NAME.to_owned(),
+            },
+            KeyStringValuePair {
+                key: "hostname".to_owned(),
+                value: HOST_NAME.to_owned(),
+            },
+            KeyStringValuePair {
+                key: "Process No.".to_owned(),
+                value: process::id().to_string(),
+            },
+            KeyStringValuePair {
+                key: "ipv4".to_owned(),
+                value: IPS.join(","),
+            },
+            KeyStringValuePair {
+                key: "Start Time".to_owned(),
+                value: current_formatted_time(),
+            },
+        ];
 
-        let f = async {
-            let properties = InstanceProperties {
-                service: SERVICE_NAME.clone(),
-                service_instance: SERVICE_INSTANCE.clone(),
-                properties: properties.clone(),
-                layer: "".to_string(),
-            };
-            manage_client.report_instance_properties(properties).await?;
-
-            Ok::<_, anyhow::Error>(())
+        let properties = InstanceProperties {
+            service: SERVICE_NAME.clone(),
+            service_instance: SERVICE_INSTANCE.clone(),
+            properties: properties.clone(),
+            layer: "".to_string(),
         };
 
-        match f.await {
-            Ok(()) => {
+        match manage_client
+            .report_instance_properties(properties.clone())
+            .await
+        {
+            Ok(_) => {
                 debug!("Report instance properties, properties: {:?}", properties);
                 break;
             }

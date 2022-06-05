@@ -12,6 +12,7 @@ use std::any;
 
 use super::Plugin;
 use crate::{
+    component::COMPONENT_PHP_CURL_ID,
     execute::ExecuteInternal,
     request::{current_tracing_context, TRACING_CONTEXT_MAP},
 };
@@ -23,8 +24,6 @@ use phper::{
 };
 use tracing::{debug, error, warn};
 use url::Url;
-
-const PHP_CURL_COMPONENT_ID: i32 = 8002;
 
 #[derive(Default)]
 pub struct CurlPlugin {}
@@ -64,8 +63,7 @@ impl CurlPlugin {
 
         let mut f = || {
             let ch = execute_data.get_parameter(1);
-            let mut arguments = [ch.clone()];
-            let result = call("curl_getinfo", &mut arguments).context("Call curl_get_info")?;
+            let result = call("curl_getinfo", &mut [ch.clone()]).context("Call curl_get_info")?;
             let result = result.as_array()?;
 
             let url = result
@@ -100,7 +98,7 @@ impl CurlPlugin {
             let mut span = current_tracing_context()?
                 .create_exit_span(url.path(), &format!("{host}:{port}"))
                 .map_err(|e| anyhow!("Create exit span failed: {}", e))?;
-            span.span_object_mut().component_id = PHP_CURL_COMPONENT_ID;
+            span.span_object_mut().component_id = COMPONENT_PHP_CURL_ID;
             span.add_tag(("url", raw_url));
 
             Ok::<_, anyhow::Error>(Some(span))
@@ -113,9 +111,28 @@ impl CurlPlugin {
 
         execute_internal(execute_data, return_value);
 
-        if let Ok(Some(span)) = result {
+        if let Ok(Some(mut span)) = result {
             let f = || {
-                warn!("Span: {:?}", span);
+                let ch = execute_data.get_parameter(1);
+                let result =
+                    call("curl_getinfo", &mut [ch.clone()]).context("Call curl_get_info")?;
+                let response = result.as_array()?;
+                let http_code = response
+                    .get("http_code")
+                    .and_then(|code| code.as_long().ok())
+                    .context("Call curl_getinfo, http_code is null")?;
+                span.add_tag(("status_code", &*http_code.to_string()));
+                if http_code == 0 {
+                    let result =
+                        call("curl_error", &mut [ch.clone()]).context("Call curl_get_info")?;
+                    let curl_error = result.as_str()?;
+                    span.add_log(vec![("CURL_ERROR", curl_error)]);
+                    span.span_object_mut().is_error = true;
+                } else if http_code >= 400 {
+                    span.span_object_mut().is_error = true;
+                } else {
+                    span.span_object_mut().is_error = false;
+                }
                 current_tracing_context()?.finalize_span(span);
                 Ok::<_, anyhow::Error>(())
             };

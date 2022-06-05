@@ -169,12 +169,9 @@ async fn receive_and_trace(channel: Channel) {
 
             // TODO Send raw data to avoid encode and decode again.
             let segment: SegmentObject = Message::decode(&*data)?;
-            warn!("Segment: {:?}", &segment);
             report_client
                 .collect(tokio_stream::iter(vec![segment]))
                 .await?;
-
-            warn!("Collected");
 
             Ok::<_, anyhow::Error>(())
         };

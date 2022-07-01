@@ -11,8 +11,8 @@
 mod curl;
 
 use crate::execute::ExecuteInternal;
-use once_cell::sync::OnceCell;
-use phper::values::{ExecuteData, Val};
+use once_cell::sync::Lazy;
+use phper::values::{ExecuteData, ZVal};
 
 pub trait Plugin {
     fn class_names(&self) -> Option<&'static [&'static str]>;
@@ -21,21 +21,19 @@ pub trait Plugin {
 
     fn execute(
         &self, execute_internal: ExecuteInternal, execute_data: &mut ExecuteData,
-        return_value: &mut Val, class_name: Option<&str>, function_name: &str,
+        return_value: &mut ZVal, class_name: Option<&str>, function_name: &str,
     );
 }
 
 pub type DynPlugin = dyn Plugin + Send + Sync + 'static;
 
-fn get_plugins() -> &'static [Box<DynPlugin>] {
-    static PLUGINS: OnceCell<Vec<Box<DynPlugin>>> = OnceCell::new();
-    PLUGINS.get_or_init(|| vec![Box::new(curl::CurlPlugin::default())])
-}
+static PLUGINS: Lazy<Vec<Box<DynPlugin>>> =
+    Lazy::new(|| vec![Box::new(curl::CurlPlugin::default())]);
 
 pub fn select_plugin(class_name: Option<&str>, function_name: &str) -> Option<&'static DynPlugin> {
     let mut selected_plugin = None;
 
-    for plugin in get_plugins() {
+    for plugin in &*PLUGINS {
         if let Some(class_name) = class_name {
             if let Some(plugin_class_names) = plugin.class_names() {
                 if plugin_class_names.contains(&class_name) {

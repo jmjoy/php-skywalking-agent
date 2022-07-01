@@ -10,6 +10,7 @@
 
 use chrono::Local;
 use once_cell::sync::Lazy;
+use phper::values::ZVal;
 use systemstat::{IpAddr, Platform, System};
 
 pub static IPS: Lazy<Vec<String>> = Lazy::new(|| {
@@ -68,4 +69,10 @@ pub const OS_NAME: &str = if cfg!(target_os = "linux") {
 
 pub fn current_formatted_time() -> String {
     Local::now().format("%Y-%m-%d %H:%M:%S").to_string()
+}
+
+pub fn z_val_to_string(zv: &ZVal) -> Option<String> {
+    zv.as_z_str()
+        .and_then(|zs| zs.to_str().ok())
+        .map(|s| s.to_string())
 }

@@ -12,17 +12,18 @@ use crate::{
     channel::{self, channel_send},
     component::COMPONENT_PHP_ID,
     module::{is_ready_for_request, SERVICE_INSTANCE, SERVICE_NAME},
+    util::z_val_to_string,
 };
-use anyhow::{anyhow, Context};
+use anyhow::Context;
 use dashmap::{mapref::one::RefMut, DashMap};
-use once_cell::sync::{Lazy, OnceCell};
-use phper::{arrays::Array, eg, modules::ModuleContext, pg, sg, sys};
+use once_cell::sync::Lazy;
+use phper::{arrays::ZArr, eg, modules::ModuleContext, pg, sg, sys};
 use prost::Message;
 use skywalking_rust::context::{
     propagation::decoder::decode_propagation, trace_context::TracingContext,
 };
-use tonic::server;
-use tracing::{debug, error, trace, warn};
+
+use tracing::{error, trace, warn};
 
 // TODO Support cli mode(swoole), so use dashmap to store trace context.
 pub static TRACING_CONTEXT_MAP: Lazy<DashMap<u64, TracingContext>> = Lazy::new(|| DashMap::new());
@@ -38,10 +39,6 @@ pub fn shutdown(_module: ModuleContext) -> bool {
     if is_ready_for_request() {
         request_flush(0);
     }
-
-    // if let Err(e) = channel_send(b"Test channel") {
-    //     error!("Channel send failed: {}", e);
-    // }
 
     true
 }
@@ -60,7 +57,6 @@ fn request_init(request_id: u64) {
 
     let header = get_page_request_header(server);
     let uri = get_page_request_uri(server);
-    // let peer = get_page_request_peer(server);
     let method = get_page_request_method(server);
 
     let propagation = header
@@ -72,6 +68,9 @@ fn request_init(request_id: u64) {
                 None
             }
         });
+
+    trace!("Propagation: {:?}", &propagation);
+    warn!("Propagation: {:?}", &propagation);
 
     let mut ctx = match propagation {
         Some(propagation) => {
@@ -114,6 +113,7 @@ fn request_flush(request_id: u64) {
 
     let segment = tracing_context.convert_segment_object();
     trace!("Trace segment: {:?}", segment);
+    warn!("Trace segment: {:?}", segment);
 
     let message = segment.encode_to_vec();
     if message.len() > *channel::MAX_LENGTH {
@@ -140,54 +140,37 @@ fn jit_initialization() {
     }
 }
 
-fn get_page_request_header(server: &Array) -> Option<String> {
+fn get_page_request_header(server: &ZArr) -> Option<String> {
     // TODO Support multi skywlaking version.
-    server.get("HTTP_SW8").and_then(|sw| sw.as_string().ok())
+    server
+        .get("HTTP_SW8")
+        .and_then(|sw| sw.as_z_str())
+        .and_then(|zs| zs.to_str().ok())
+        .map(|s| s.to_string())
 }
 
-fn get_page_request_uri(server: &Array) -> String {
+fn get_page_request_uri(server: &ZArr) -> String {
     server
         .get("REQUEST_URI")
-        .and_then(|u| u.as_string().ok())
-        .or_else(|| server.get("PHP_SELF").and_then(|u| u.as_string().ok()))
-        .or_else(|| server.get("SCRIPT_NAME").and_then(|u| u.as_string().ok()))
+        .and_then(z_val_to_string)
+        .or_else(|| server.get("PHP_SELF").and_then(z_val_to_string))
+        .or_else(|| server.get("SCRIPT_NAME").and_then(z_val_to_string))
         .unwrap_or_else(|| "{unknown}".to_string())
 }
 
-// fn get_page_request_peer(server: &Array) -> String {
-//     let host = server
-//         .get("HTTP_HOST")
-//         .and_then(|s| s.as_string().ok())
-//         .or_else(|| server.get("SERVER_ADDR").and_then(|s|
-// s.as_string().ok()));     let port = server.get("SERVER_PORT").and_then(|s|
-// s.as_string().ok());
-
-//     match (host, port) {
-//         (Some(host), Some(port)) => {
-//             if host.contains(':') {
-//                 host
-//             } else {
-//                 format!("{host}:{port}")
-//             }
-//         }
-//         _ => "".to_string(),
-//     }
-// }
-
-fn get_page_request_method(server: &Array) -> String {
+fn get_page_request_method(server: &ZArr) -> String {
     server
         .get("REQUEST_METHOD")
-        .and_then(|u| u.as_string().ok())
+        .and_then(z_val_to_string)
         .unwrap_or_else(|| "UNKNOWN".to_string())
 }
 
-fn get_page_request_server<'a>() -> anyhow::Result<&'a Array> {
+fn get_page_request_server<'a>() -> anyhow::Result<&'a ZArr> {
     unsafe {
-        let symbol_table =
-            Array::from_mut_ptr(&mut eg!(symbol_table)).context("EG(symbol_table) is null")?;
+        let symbol_table = ZArr::from_mut_ptr(&mut eg!(symbol_table));
         let carrier = symbol_table
             .get("_SERVER")
-            .and_then(|carrier| carrier.as_array().ok())
+            .and_then(|carrier| carrier.as_z_arr())
             .context("$_SERVER is null")?;
         Ok(carrier)
     }

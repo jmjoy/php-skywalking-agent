@@ -9,10 +9,11 @@
 // See the Mulan PSL v2 for more details.
 
 use crate::{module::is_ready_for_request, plugin::select_plugin};
+use helper::try_option;
 use phper::{
-    strings::ZendString,
+    strings::ZStr,
     sys,
-    values::{ExecuteData, Val},
+    values::{ExecuteData, ZVal},
 };
 
 static mut ORI_EXECUTE_INTERNAL: Option<
@@ -28,46 +29,46 @@ unsafe extern "C" fn execute_internal(
     }
 
     let execute_data = ExecuteData::from_mut_ptr(execute_data);
-    let return_value = Val::from_mut_ptr(return_value);
+    let return_value = ZVal::from_mut_ptr(return_value);
 
     let function = execute_data.func();
+
     let function_name = function.get_name();
-    let function_name = match function_name.as_str() {
-        Ok(function_name) => function_name,
-        Err(_) => {
-            ori_execute_internal(execute_data, return_value);
-            return;
-        }
-    };
+    let function_name = try_option!(function_name.to_str().ok() ? {
+        ori_execute_internal(execute_data, return_value);
+    });
+    let function_name = function_name.to_owned();
 
     let is_class = !(*function.as_ptr()).common.scope.is_null()
         && !((*(*function.as_ptr()).common.scope).name.is_null());
     let class_name = if is_class {
-        ZendString::from_ptr((*(*function.as_ptr()).common.scope).name)
-            .and_then(|s| s.as_str().ok())
+        ZStr::from_ptr((*(*function.as_ptr()).common.scope).name)
+            .to_str()
+            .ok()
     } else {
         None
     };
+    let class_name = class_name.map(ToOwned::to_owned);
 
-    let plugin = select_plugin(class_name, function_name);
+    let plugin = select_plugin(class_name.as_deref(), &function_name);
 
     if let Some(plugin) = plugin {
         plugin.execute(
             ori_execute_internal,
             execute_data,
             return_value,
-            class_name,
-            function_name,
+            class_name.as_deref(),
+            &function_name,
         );
     } else {
         ori_execute_internal(execute_data, return_value);
     }
 }
 
-pub type ExecuteInternal = fn(execute_data: &mut ExecuteData, return_value: &mut Val);
+pub type ExecuteInternal = fn(execute_data: &mut ExecuteData, return_value: &mut ZVal);
 
 #[inline]
-fn ori_execute_internal(execute_data: &mut ExecuteData, return_value: &mut Val) {
+fn ori_execute_internal(execute_data: &mut ExecuteData, return_value: &mut ZVal) {
     unsafe { raw_ori_execute_internal(execute_data.as_mut_ptr(), return_value.as_mut_ptr()) }
 }
 

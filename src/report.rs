@@ -9,37 +9,29 @@
 // See the Mulan PSL v2 for more details.
 
 use crate::{
-    channel::{self, channel_receive},
+    channel::channel_receive,
     module::{mark_ready_for_request, SERVICE_INSTANCE, SERVICE_NAME},
     util::{current_formatted_time, HOST_NAME, IPS, OS_NAME},
-    SKYWALKING_AGENT_SERVER_ADDR, SKYWALKING_AGENT_SERVICE_NAME, SKYWALKING_AGENT_WORKER_THREADS,
+    SKYWALKING_AGENT_SERVER_ADDR, SKYWALKING_AGENT_WORKER_THREADS,
 };
-use anyhow::Context;
 use phper::ini::Ini;
 use prost::Message;
-use skywalking_rust::{
-    common::random_generator::RandomGenerator,
-    context::trace_context::TracingContext,
-    skywalking_proto::v3::{
-        management_service_client::ManagementServiceClient,
-        trace_segment_report_service_client::TraceSegmentReportServiceClient, InstanceProperties,
-        KeyStringValuePair, SegmentObject,
-    },
+use skywalking_rust::skywalking_proto::v3::{
+    management_service_client::ManagementServiceClient,
+    trace_segment_report_service_client::TraceSegmentReportServiceClient, InstanceProperties,
+    KeyStringValuePair, SegmentObject,
 };
 use std::{
     num::NonZeroUsize,
     process,
     thread::{self, available_parallelism},
-    time::{Duration, SystemTime},
+    time::Duration,
 };
 use tokio::{
     runtime::{self, Runtime},
     time::sleep,
 };
-use tonic::{
-    transport::{Channel, Endpoint},
-    IntoRequest,
-};
+use tonic::transport::{Channel, Endpoint};
 use tracing::{debug, error, info, warn};
 
 pub fn init_reporter() {

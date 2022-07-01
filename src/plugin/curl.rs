@@ -8,25 +8,29 @@
 // NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 // See the Mulan PSL v2 for more details.
 
-use std::any;
-
 use super::Plugin;
 use crate::{
-    component::COMPONENT_PHP_CURL_ID,
-    execute::ExecuteInternal,
-    request::{current_tracing_context, TRACING_CONTEXT_MAP},
+    component::COMPONENT_PHP_CURL_ID, execute::ExecuteInternal, request::current_tracing_context,
 };
 use anyhow::{anyhow, Context};
 use phper::{
+    arrays::{InsertKey, ZArray},
     functions::call,
-    sys,
-    values::{ExecuteData, Val},
+    values::{ExecuteData, ZVal},
 };
+use skywalking_rust::context::propagation::encoder::encode_propagation;
+use std::{cell::RefCell, collections::HashMap, os::raw::c_long};
 use tracing::{debug, error, warn};
 use url::Url;
 
+static CURLOPT_HTTPHEADER: c_long = 10023;
+
+thread_local! {
+    static CURL_HEADERS: RefCell<HashMap<i64, ZVal>> = Default::default();
+}
+
 #[derive(Default)]
-pub struct CurlPlugin {}
+pub struct CurlPlugin;
 
 impl Plugin for CurlPlugin {
     #[inline]
@@ -41,10 +45,15 @@ impl Plugin for CurlPlugin {
 
     fn execute(
         &self, execute_internal: ExecuteInternal, execute_data: &mut ExecuteData,
-        return_value: &mut Val, _class_name: Option<&str>, function_name: &str,
+        return_value: &mut ZVal, _class_name: Option<&str>, function_name: &str,
     ) {
         match function_name {
+            "curl_setopt" => self.execute_curl_setopt(execute_internal, execute_data, return_value),
+            "curl_setopt_array" => {
+                self.execute_curl_setopt_array(execute_internal, execute_data, return_value)
+            }
             "curl_exec" => self.execute_curl_exec(execute_internal, execute_data, return_value),
+            "curl_close" => self.execute_curl_close(execute_internal, execute_data, return_value),
             _ => execute_internal(execute_data, return_value),
         }
     }
@@ -52,24 +61,78 @@ impl Plugin for CurlPlugin {
 
 impl CurlPlugin {
     #[tracing::instrument(skip_all)]
+    fn execute_curl_setopt(
+        &self, execute_internal: ExecuteInternal, execute_data: &mut ExecuteData,
+        return_value: &mut ZVal,
+    ) {
+        if unsafe { execute_data.num_args() } < 3 {
+            execute_internal(execute_data, return_value);
+            return;
+        }
+
+        let cid = match self.get_resource_id(execute_internal, execute_data, return_value) {
+            Some(cid) => cid,
+            None => return,
+        };
+
+        if matches!(execute_data.get_parameter(2).as_long(), Some(n) if n == CURLOPT_HTTPHEADER) {
+            let value = execute_data.get_parameter(3);
+            if value.get_type_info().is_array() {
+                CURL_HEADERS.with(|headers| headers.borrow_mut().insert(cid, value.clone()));
+            }
+        }
+
+        execute_internal(execute_data, return_value);
+    }
+
+    #[tracing::instrument(skip_all)]
+    fn execute_curl_setopt_array(
+        &self, execute_internal: ExecuteInternal, execute_data: &mut ExecuteData,
+        return_value: &mut ZVal,
+    ) {
+        if unsafe { execute_data.num_args() } < 2 {
+            execute_internal(execute_data, return_value);
+            return;
+        }
+
+        let cid = match self.get_resource_id(execute_internal, execute_data, return_value) {
+            Some(cid) => cid,
+            None => return,
+        };
+
+        if let Some(opts) = execute_data.get_parameter(2).as_z_arr() {
+            if let Some(value) = opts.get(CURLOPT_HTTPHEADER as u64) {
+                CURL_HEADERS.with(|headers| headers.borrow_mut().insert(cid, value.clone()));
+            }
+        }
+
+        execute_internal(execute_data, return_value);
+    }
+
+    #[tracing::instrument(skip_all)]
     fn execute_curl_exec(
         &self, execute_internal: ExecuteInternal, execute_data: &mut ExecuteData,
-        return_value: &mut Val,
+        return_value: &mut ZVal,
     ) {
         if unsafe { execute_data.num_args() } < 1 {
             execute_internal(execute_data, return_value);
             return;
         }
 
+        let cid = match self.get_resource_id(execute_internal, execute_data, return_value) {
+            Some(cid) => cid,
+            None => return,
+        };
+
         let mut f = || {
             let ch = execute_data.get_parameter(1);
             let result = call("curl_getinfo", &mut [ch.clone()]).context("Call curl_get_info")?;
-            let result = result.as_array()?;
+            let result = result.as_z_arr().context("result isn't array")?;
 
             let url = result
                 .get("url")
                 .context("Get url from curl_get_info result")?;
-            let raw_url = url.as_str()?;
+            let raw_url = url.as_z_str().context("url isn't string")?.to_str()?;
             let mut url = raw_url.to_string();
 
             debug!("curl_getinfo get url: {}", &url);
@@ -94,12 +157,30 @@ impl CurlPlugin {
                     _ => 0,
                 },
             };
+            let peer = &format!("{host}:{port}");
 
             let mut span = current_tracing_context()?
-                .create_exit_span(url.path(), &format!("{host}:{port}"))
+                .create_exit_span(url.path(), peer)
                 .map_err(|e| anyhow!("Create exit span failed: {}", e))?;
             span.span_object_mut().component_id = COMPONENT_PHP_CURL_ID;
             span.add_tag(("url", raw_url));
+
+            let sw_header = encode_propagation(&*current_tracing_context()?, url.path(), peer);
+            let mut val = CURL_HEADERS
+                .with(|headers| headers.borrow_mut().remove(&cid))
+                .unwrap_or_else(|| ZVal::from(ZArray::new()));
+            if let Some(arr) = val.as_mut_z_arr() {
+                arr.insert(
+                    InsertKey::NextIndex,
+                    ZVal::from(format!("sw8: {}", sw_header)),
+                );
+                let ch = execute_data.get_parameter(1);
+                call(
+                    "curl_setopt",
+                    &mut [ch.clone(), ZVal::from(CURLOPT_HTTPHEADER), val],
+                )
+                .context("Call curl_setopt")?;
+            }
 
             Ok::<_, anyhow::Error>(Some(span))
         };
@@ -116,16 +197,19 @@ impl CurlPlugin {
                 let ch = execute_data.get_parameter(1);
                 let result =
                     call("curl_getinfo", &mut [ch.clone()]).context("Call curl_get_info")?;
-                let response = result.as_array()?;
+                let response = result.as_z_arr().context("response in not arr")?;
                 let http_code = response
                     .get("http_code")
-                    .and_then(|code| code.as_long().ok())
+                    .and_then(|code| code.as_long())
                     .context("Call curl_getinfo, http_code is null")?;
                 span.add_tag(("status_code", &*http_code.to_string()));
                 if http_code == 0 {
                     let result =
                         call("curl_error", &mut [ch.clone()]).context("Call curl_get_info")?;
-                    let curl_error = result.as_str()?;
+                    let curl_error = result
+                        .as_z_str()
+                        .context("curl_error is not string")?
+                        .to_str()?;
                     span.add_log(vec![("CURL_ERROR", curl_error)]);
                     span.span_object_mut().is_error = true;
                 } else if http_code >= 400 {
@@ -138,6 +222,44 @@ impl CurlPlugin {
             };
             if let Err(e) = f() {
                 error!("{}", e);
+            }
+        }
+    }
+
+    #[tracing::instrument(skip_all)]
+    fn execute_curl_close(
+        &self, execute_internal: ExecuteInternal, execute_data: &mut ExecuteData,
+        return_value: &mut ZVal,
+    ) {
+        if unsafe { execute_data.num_args() } < 3 {
+            execute_internal(execute_data, return_value);
+            return;
+        }
+
+        let cid = match execute_data.get_parameter(1).as_z_res() {
+            Some(res) => res.handle(),
+            None => {
+                error!("Get resource id failed");
+                execute_internal(execute_data, return_value);
+                return;
+            }
+        };
+
+        CURL_HEADERS.with(|headers| headers.borrow_mut().remove(&cid));
+
+        execute_internal(execute_data, return_value);
+    }
+
+    fn get_resource_id(
+        &self, execute_internal: ExecuteInternal, execute_data: &mut ExecuteData,
+        return_value: &mut ZVal,
+    ) -> Option<i64> {
+        match execute_data.get_parameter(1).as_z_res() {
+            Some(res) => Some(res.handle()),
+            None => {
+                error!("Get resource id failed");
+                execute_internal(execute_data, return_value);
+                None
             }
         }
     }

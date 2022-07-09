@@ -10,25 +10,23 @@
 
 mod curl;
 
-use crate::execute::ExecuteInternal;
+use crate::execute::{AfterExecuteHook, BeforeExecuteHook};
 use once_cell::sync::Lazy;
-use phper::values::{ExecuteData, ZVal};
+
+static PLUGINS: Lazy<Vec<Box<DynPlugin>>> =
+    Lazy::new(|| vec![Box::new(curl::CurlPlugin::default())]);
+
+pub type DynPlugin = dyn Plugin + Send + Sync + 'static;
 
 pub trait Plugin {
     fn class_names(&self) -> Option<&'static [&'static str]>;
 
     fn function_name_prefix(&self) -> Option<&'static str>;
 
-    fn execute(
-        &self, execute_internal: ExecuteInternal, execute_data: &mut ExecuteData,
-        return_value: &mut ZVal, class_name: Option<&str>, function_name: &str,
-    );
+    fn hook(
+        &self, class_name: Option<&str>, function_name: &str,
+    ) -> Option<(Box<BeforeExecuteHook>, Box<AfterExecuteHook>)>;
 }
-
-pub type DynPlugin = dyn Plugin + Send + Sync + 'static;
-
-static PLUGINS: Lazy<Vec<Box<DynPlugin>>> =
-    Lazy::new(|| vec![Box::new(curl::CurlPlugin::default())]);
 
 pub fn select_plugin(class_name: Option<&str>, function_name: &str) -> Option<&'static DynPlugin> {
     let mut selected_plugin = None;

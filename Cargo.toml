@@ -38,8 +38,5 @@ tracing-appender = "0.2.2"
 tracing-subscriber = "0.3.11"
 url = "2.2.2"
 
-# [patch.crates-io]
-# phper = { path = '/origin/home/jmjoy/workspace/rust/phper/phper' }
-
 # [patch.'https://github.com/jmjoy/skywalking-rust.git']
 # skywalking_rust = { path = "/origin/home/jmjoy/workspace/rust/skywalking-rust" }

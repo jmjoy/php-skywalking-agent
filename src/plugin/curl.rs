@@ -20,7 +20,7 @@ use phper::{
     functions::call,
     values::{ExecuteData, ZVal},
 };
-use skywalking_rust::context::{propagation::encoder::encode_propagation, trace_context::Span};
+use skywalking::context::{propagation::encoder::encode_propagation, span::Span};
 use std::{cell::RefCell, collections::HashMap, os::raw::c_long};
 use tracing::{debug, warn};
 use url::Url;
@@ -189,7 +189,7 @@ impl CurlPlugin {
                     .get("http_code")
                     .and_then(|code| code.as_long())
                     .context("Call curl_getinfo, http_code is null")?;
-                span.add_tag(("status_code", &*http_code.to_string()));
+                span.add_tag("status_code", &*http_code.to_string());
                 if http_code == 0 {
                     let result =
                         call("curl_error", &mut [ch.clone()]).context("Call curl_get_info")?;

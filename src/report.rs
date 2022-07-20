@@ -16,10 +16,9 @@ use crate::{
 };
 use phper::ini::Ini;
 use prost::Message;
-use skywalking_rust::skywalking_proto::v3::{
-    management_service_client::ManagementServiceClient,
-    trace_segment_report_service_client::TraceSegmentReportServiceClient, InstanceProperties,
-    KeyStringValuePair, SegmentObject,
+use skywalking::skywalking_proto::v3::{
+    trace_segment_report_service_client::TraceSegmentReportServiceClient, KeyStringValuePair,
+    SegmentObject,
 };
 use std::{
     num::NonZeroUsize,
@@ -69,7 +68,7 @@ async fn start_reporter(server_addr: String) {
         }
     };
     let channel = connect(endpoint).await;
-    report_instance_properties(channel.clone()).await;
+    // report_instance_properties(channel.clone()).await;
     mark_ready_for_request();
     receive_and_trace(channel).await;
 }
@@ -95,60 +94,60 @@ async fn connect(endpoint: Endpoint) -> Channel {
     channel
 }
 
-#[tracing::instrument(skip_all)]
-async fn report_instance_properties(channel: Channel) {
-    let mut manage_client = ManagementServiceClient::new(channel);
+// #[tracing::instrument(skip_all)]
+// async fn report_instance_properties(channel: Channel) {
+//     let mut manage_client = ManagementServiceClient::new(channel);
 
-    loop {
-        let properties = vec![
-            KeyStringValuePair {
-                key: "language".to_owned(),
-                value: "php".to_owned(),
-            },
-            KeyStringValuePair {
-                key: "OS Name".to_owned(),
-                value: OS_NAME.to_owned(),
-            },
-            KeyStringValuePair {
-                key: "hostname".to_owned(),
-                value: HOST_NAME.to_owned(),
-            },
-            KeyStringValuePair {
-                key: "Process No.".to_owned(),
-                value: process::id().to_string(),
-            },
-            KeyStringValuePair {
-                key: "ipv4".to_owned(),
-                value: IPS.join(","),
-            },
-            KeyStringValuePair {
-                key: "Start Time".to_owned(),
-                value: current_formatted_time(),
-            },
-        ];
+//     loop {
+//         let properties = vec![
+//             KeyStringValuePair {
+//                 key: "language".to_owned(),
+//                 value: "php".to_owned(),
+//             },
+//             KeyStringValuePair {
+//                 key: "OS Name".to_owned(),
+//                 value: OS_NAME.to_owned(),
+//             },
+//             KeyStringValuePair {
+//                 key: "hostname".to_owned(),
+//                 value: HOST_NAME.to_owned(),
+//             },
+//             KeyStringValuePair {
+//                 key: "Process No.".to_owned(),
+//                 value: process::id().to_string(),
+//             },
+//             KeyStringValuePair {
+//                 key: "ipv4".to_owned(),
+//                 value: IPS.join(","),
+//             },
+//             KeyStringValuePair {
+//                 key: "Start Time".to_owned(),
+//                 value: current_formatted_time(),
+//             },
+//         ];
 
-        let properties = InstanceProperties {
-            service: SERVICE_NAME.clone(),
-            service_instance: SERVICE_INSTANCE.clone(),
-            properties: properties.clone(),
-            layer: "".to_string(),
-        };
+//         let properties = InstanceProperties {
+//             service: SERVICE_NAME.clone(),
+//             service_instance: SERVICE_INSTANCE.clone(),
+//             properties: properties.clone(),
+//             layer: "".to_string(),
+//         };
 
-        match manage_client
-            .report_instance_properties(properties.clone())
-            .await
-        {
-            Ok(_) => {
-                debug!("Report instance properties, properties: {:?}", properties);
-                break;
-            }
-            Err(e) => {
-                warn!("Report instance properties failed, retry after 10s: {}", e);
-                sleep(Duration::from_secs(10)).await;
-            }
-        }
-    }
-}
+//         match manage_client
+//             .report_instance_properties(properties.clone())
+//             .await
+//         {
+//             Ok(_) => {
+//                 debug!("Report instance properties, properties: {:?}",
+// properties);                 break;
+//             }
+//             Err(e) => {
+//                 warn!("Report instance properties failed, retry after 10s:
+// {}", e);                 sleep(Duration::from_secs(10)).await;
+//             }
+//         }
+//     }
+// }
 
 #[tracing::instrument(skip_all)]
 async fn receive_and_trace(channel: Channel) {

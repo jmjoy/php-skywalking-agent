@@ -512,9 +512,9 @@ dependencies = [
 
 [[package]]
 name = "hashbrown"
-version = "0.12.2"
+version = "0.12.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "607c8a29735385251a339424dd462993c0fed8fa09d378f259377df08c126022"
+checksum = "8a9ee70c43aaf417c914396645a0fa852624801b24ebb7ae78fe8272889ac888"
 
 [[package]]
 name = "heck"
@@ -997,8 +997,7 @@ dependencies = [
 [[package]]
 name = "phper"
 version = "0.4.0-alpha.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "82e83918faf4fceedd125e4892aa2ae31c68b01dfc5957ea73cdafa7bb41ee1a"
+source = "git+https://github.com/jmjoy/phper.git?branch=master#5e848fa1de52eb76180da4dfdcdd5605df40b989"
 dependencies = [
  "anyhow",
  "clap",
@@ -1016,8 +1015,7 @@ dependencies = [
 [[package]]
 name = "phper-alloc"
 version = "0.4.0-alpha.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "12028648a4a980a98e7b74430a2ea0fa11d0092d957ca4a27ee9046071840f03"
+source = "git+https://github.com/jmjoy/phper.git?branch=master#5e848fa1de52eb76180da4dfdcdd5605df40b989"
 dependencies = [
  "phper-build",
  "phper-sys",
@@ -1026,8 +1024,7 @@ dependencies = [
 [[package]]
 name = "phper-build"
 version = "0.4.0-alpha.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9f7974b703a793ba6dd6ef1fb1edf230c550545235f692730cbe7bd47773ccaf"
+source = "git+https://github.com/jmjoy/phper.git?branch=master#5e848fa1de52eb76180da4dfdcdd5605df40b989"
 dependencies = [
  "phper-sys",
 ]
@@ -1035,8 +1032,7 @@ dependencies = [
 [[package]]
 name = "phper-macros"
 version = "0.4.0-alpha.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "355b29d2d3d94826cbcffbde4ab5a6e049aac7620d707ca736a810c8319ded55"
+source = "git+https://github.com/jmjoy/phper.git?branch=master#5e848fa1de52eb76180da4dfdcdd5605df40b989"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1046,8 +1042,7 @@ dependencies = [
 [[package]]
 name = "phper-sys"
 version = "0.4.0-alpha.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5aa81f13bce3b2224f71012acacaf78196d20c2df0a8e0bbc3d264d5fa6b3431"
+source = "git+https://github.com/jmjoy/phper.git?branch=master#5e848fa1de52eb76180da4dfdcdd5605df40b989"
 dependencies = [
  "bindgen",
  "cc",

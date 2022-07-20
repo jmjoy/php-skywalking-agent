@@ -14,6 +14,7 @@
 
 mod channel;
 mod component;
+mod context;
 mod execute;
 mod module;
 mod plugin;

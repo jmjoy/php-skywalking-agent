@@ -12,7 +12,7 @@ publish = false
 
 [lib]
 name = "skywalking_agent"
-crate-type = ["cdylib"]
+crate-type = ["lib", "cdylib"]
 
 [[bin]]
 name = "skywalking_agent"
@@ -26,7 +26,7 @@ helper = "3.2.0"
 hostname = "0.3.1"
 ipc-channel = "0.16.0"
 once_cell = "1.13.0"
-phper = "0.4.0-alpha.3"
+phper = { git = "https://github.com/jmjoy/phper.git", branch = "master" }
 prost = "0.10.4"
 skywalking = { git = "https://github.com/apache/skywalking-rust.git", branch = "master" }
 systemstat = "0.1.11"

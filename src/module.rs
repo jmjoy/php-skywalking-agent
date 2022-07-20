@@ -16,7 +16,11 @@ use crate::{
 use ipc_channel::ipc::IpcSharedMemory;
 use once_cell::sync::Lazy;
 use phper::{ini::Ini, modules::ModuleContext, sys};
-use skywalking_rust::common::random_generator::RandomGenerator;
+use skywalking::{
+    common::random_generator::RandomGenerator,
+    context::tracer::{self, Tracer},
+    reporter::log::LogReporter,
+};
 use std::{
     ffi::CStr,
     intrinsics::transmute,
@@ -37,6 +41,7 @@ pub static SERVICE_INSTANCE: Lazy<String> =
 
 pub fn init(_module: ModuleContext) -> bool {
     // Now only support in FPM mode.
+    // TODO Support swoole, etc.
     if get_sapi_module_name().to_bytes() != b"fpm-fcgi" {
         return true;
     }
@@ -57,6 +62,8 @@ pub fn init(_module: ModuleContext) -> bool {
         let service_name = SERVICE_NAME.as_str();
         let service_instance = SERVICE_INSTANCE.as_str();
         info!(service_name, service_instance, "Starting skywalking agent");
+
+        tracer::set_global_tracer(Tracer::new(service_name, service_instance, LogReporter));
 
         init_reporter();
     }

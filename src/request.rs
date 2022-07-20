@@ -11,40 +11,44 @@
 use crate::{
     channel::{self, channel_send},
     component::COMPONENT_PHP_ID,
+    context::RequestContext,
     module::{is_ready_for_request, SERVICE_INSTANCE, SERVICE_NAME},
     util::z_val_to_string,
 };
 use anyhow::Context;
 use dashmap::{mapref::one::RefMut, DashMap};
+use helper::try_option;
 use once_cell::sync::Lazy;
-use phper::{arrays::ZArr, eg, modules::ModuleContext, pg, sg, sys};
-use prost::Message;
-use skywalking_rust::context::{
-    propagation::decoder::decode_propagation, trace_context::TracingContext,
+use phper::{
+    arrays::ZArr,
+    eg,
+    modules::ModuleContext,
+    pg, sg,
+    sys::{self, program_invocation_name},
 };
-
+use skywalking::context::{
+    propagation::decoder::decode_propagation, span::Span, trace_context::TracingContext, tracer,
+};
+use std::cell::RefCell;
 use tracing::{error, trace, warn};
-
-// TODO Support cli mode(swoole), so use dashmap to store trace context.
-pub static TRACING_CONTEXT_MAP: Lazy<DashMap<u64, TracingContext>> = Lazy::new(|| DashMap::new());
 
 pub fn init(_module: ModuleContext) -> bool {
     if is_ready_for_request() {
-        request_init(0);
+        request_init(None);
     }
     true
 }
 
 pub fn shutdown(_module: ModuleContext) -> bool {
     if is_ready_for_request() {
-        request_flush(0);
+        request_flush(None);
     }
 
     true
 }
 
 #[tracing::instrument(skip_all)]
-fn request_init(request_id: u64) {
+fn request_init(request_id: Option<u64>) {
     jit_initialization();
 
     let server = match get_page_request_server() {
@@ -70,64 +74,41 @@ fn request_init(request_id: u64) {
         });
 
     trace!("Propagation: {:?}", &propagation);
-    warn!("Propagation: {:?}", &propagation);
 
     let mut ctx = match propagation {
-        Some(propagation) => {
-            TracingContext::from_propagation_context(&SERVICE_NAME, &SERVICE_INSTANCE, propagation)
-        }
-        None => TracingContext::default(&SERVICE_NAME, &SERVICE_INSTANCE),
+        Some(propagation) => tracer::create_trace_context_from_propagation(propagation),
+        None => tracer::create_trace_context(),
     };
 
     let operation_name = format!("{method}:{uri}");
-    let mut span = match ctx.create_entry_span(&operation_name) {
-        Ok(span) => span,
-        Err(e) => {
-            error!("Create entry span failed: {}", e);
-            return;
-        }
-    };
-    span.span_object_mut().component_id = COMPONENT_PHP_ID;
-    span.add_tag(("url", &uri));
-    span.add_tag(("http.method", &method));
-    ctx.spans.push(span);
+    let mut span = ctx.create_entry_span(&operation_name);
+    span.with_span_object_mut(|span| span.component_id = COMPONENT_PHP_ID);
+    span.add_tag("url", &uri);
+    span.add_tag("http.method", &method);
 
-    TRACING_CONTEXT_MAP.insert(request_id, ctx);
+    RequestContext::set_global(
+        request_id,
+        RequestContext {
+            tracing_context: ctx,
+            entry_span: span,
+        },
+    );
 }
 
-fn request_flush(request_id: u64) {
-    let mut tracing_context = match TRACING_CONTEXT_MAP.remove(&request_id) {
-        Some((_, tracing_context)) => tracing_context,
-        None => return,
-    };
-    let span = match tracing_context.spans.first_mut() {
-        Some(span) => span,
-        None => return,
-    };
+fn request_flush(request_id: Option<u64>) {
+    let RequestContext {
+        tracing_context,
+        entry_span,
+    } = try_option!(RequestContext::remove_global(request_id)?());
+
     let status_code = unsafe { sg!(sapi_headers).http_response_code };
-    span.add_tag(("http.status_code", &status_code.to_string()));
+    entry_span.add_tag("http.status_code", &status_code.to_string());
     if status_code >= 400 {
-        span.span_object_mut().is_error = true;
-    }
-    span.close();
-
-    let segment = tracing_context.convert_segment_object();
-    trace!("Trace segment: {:?}", segment);
-    warn!("Trace segment: {:?}", segment);
-
-    let message = segment.encode_to_vec();
-    if message.len() > *channel::MAX_LENGTH {
-        warn!(
-            message_len = message.len(),
-            max_message_length = *channel::MAX_LENGTH,
-            "Message is too big"
-        );
-        return;
+        entry_span.with_span_object_mut(|span| span.is_error = true);
     }
 
-    if let Err(e) = channel_send(&message) {
-        error!("Channel send failed: {}", e);
-    }
+    drop(entry_span);
+    drop(tracing_context);
 }
 
 fn jit_initialization() {
@@ -174,10 +155,4 @@ fn get_page_request_server<'a>() -> anyhow::Result<&'a ZArr> {
             .context("$_SERVER is null")?;
         Ok(carrier)
     }
-}
-
-pub fn current_tracing_context() -> anyhow::Result<RefMut<'static, u64, TracingContext>> {
-    TRACING_CONTEXT_MAP
-        .get_mut(&0)
-        .context("Current tracing context not exists")
 }

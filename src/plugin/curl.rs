@@ -11,8 +11,8 @@
 use super::Plugin;
 use crate::{
     component::COMPONENT_PHP_CURL_ID,
+    context::RequestContext,
     execute::{AfterExecuteHook, BeforeExecuteHook},
-    request::current_tracing_context,
 };
 use anyhow::{anyhow, bail, Context};
 use phper::{
@@ -20,7 +20,9 @@ use phper::{
     functions::call,
     values::{ExecuteData, ZVal},
 };
-use skywalking::context::{propagation::encoder::encode_propagation, span::Span};
+use skywalking::context::{
+    propagation::encoder::encode_propagation, span::Span, trace_context::TracingContext,
+};
 use std::{cell::RefCell, collections::HashMap, os::raw::c_long};
 use tracing::{debug, warn};
 use url::Url;
@@ -63,15 +65,15 @@ impl CurlPlugin {
     fn hook_curl_setopt(&self) -> (Box<BeforeExecuteHook>, Box<AfterExecuteHook>) {
         (
             Box::new(|execute_data| {
-                if unsafe { execute_data.num_args() } < 3 {
+                if execute_data.num_args() < 3 {
                     bail!("argument count incorrect");
                 }
 
                 let cid = Self::get_resource_id(execute_data)?;
 
-                if matches!(execute_data.get_parameter(2).as_long(), Some(n) if n == CURLOPT_HTTPHEADER)
+                if matches!(execute_data.get_parameter(1).as_long(), Some(n) if n == CURLOPT_HTTPHEADER)
                 {
-                    let value = execute_data.get_parameter(3);
+                    let value = execute_data.get_parameter(2);
                     if value.get_type_info().is_array() {
                         CURL_HEADERS
                             .with(|headers| headers.borrow_mut().insert(cid, value.clone()));
@@ -94,7 +96,7 @@ impl CurlPlugin {
 
                 let cid = Self::get_resource_id(execute_data)?;
 
-                if let Some(opts) = execute_data.get_parameter(2).as_z_arr() {
+                if let Some(opts) = execute_data.get_parameter(1).as_z_arr() {
                     if let Some(value) = opts.get(CURLOPT_HTTPHEADER as u64) {
                         CURL_HEADERS
                             .with(|headers| headers.borrow_mut().insert(cid, value.clone()));
@@ -111,13 +113,13 @@ impl CurlPlugin {
     fn execute_curl_exec(&self) -> (Box<BeforeExecuteHook>, Box<AfterExecuteHook>) {
         (
             Box::new(|execute_data| {
-                if unsafe { execute_data.num_args() } < 1 {
+                if execute_data.num_args() < 1 {
                     bail!("argument count incorrect");
                 }
 
                 let cid = Self::get_resource_id(execute_data)?;
 
-                let ch = execute_data.get_parameter(1);
+                let ch = execute_data.get_parameter(0);
                 let result =
                     call("curl_getinfo", &mut [ch.clone()]).context("Call curl_get_info failed")?;
                 let result = result.as_z_arr().context("result isn't array")?;
@@ -153,13 +155,16 @@ impl CurlPlugin {
                 };
                 let peer = &format!("{host}:{port}");
 
-                let mut span = current_tracing_context()?
-                    .create_exit_span(url.path(), peer)
-                    .map_err(|e| anyhow!("Create exit span failed: {}", e))?;
-                span.span_object_mut().component_id = COMPONENT_PHP_CURL_ID;
-                span.add_tag(("url", raw_url));
+                let mut span = RequestContext::try_with_global_tracing_context(None, |ctx| {
+                    ctx.create_exit_span(url.path(), peer)
+                })?;
 
-                let sw_header = encode_propagation(&*current_tracing_context()?, url.path(), peer);
+                span.with_span_object_mut(|span| span.component_id = COMPONENT_PHP_CURL_ID);
+                span.add_tag("url", raw_url);
+
+                let sw_header = RequestContext::try_with_global_tracing_context(None, |ctx| {
+                    encode_propagation(ctx, url.path(), peer)
+                })?;
                 let mut val = CURL_HEADERS
                     .with(|headers| headers.borrow_mut().remove(&cid))
                     .unwrap_or_else(|| ZVal::from(ZArray::new()));
@@ -168,7 +173,7 @@ impl CurlPlugin {
                         InsertKey::NextIndex,
                         ZVal::from(format!("sw8: {}", sw_header)),
                     );
-                    let ch = execute_data.get_parameter(1);
+                    let ch = execute_data.get_parameter(0);
                     call(
                         "curl_setopt",
                         &mut [ch.clone(), ZVal::from(CURLOPT_HTTPHEADER), val],
@@ -176,12 +181,12 @@ impl CurlPlugin {
                     .context("Call curl_setopt")?;
                 }
 
-                Ok(span)
+                Ok(Box::new(span))
             }),
             Box::new(move |span, execute_data, _| {
                 let mut span = span.downcast::<Span>().unwrap();
 
-                let ch = execute_data.get_parameter(1);
+                let ch = execute_data.get_parameter(0);
                 let result =
                     call("curl_getinfo", &mut [ch.clone()]).context("Call curl_get_info")?;
                 let response = result.as_z_arr().context("response in not arr")?;
@@ -198,13 +203,12 @@ impl CurlPlugin {
                         .context("curl_error is not string")?
                         .to_str()?;
                     span.add_log(vec![("CURL_ERROR", curl_error)]);
-                    span.span_object_mut().is_error = true;
+                    span.with_span_object_mut(|span| span.is_error = true);
                 } else if http_code >= 400 {
-                    span.span_object_mut().is_error = true;
+                    span.with_span_object_mut(|span| span.is_error = true);
                 } else {
-                    span.span_object_mut().is_error = false;
+                    span.with_span_object_mut(|span| span.is_error = false);
                 }
-                current_tracing_context()?.finalize_span(span);
 
                 Ok(())
             }),
@@ -215,7 +219,7 @@ impl CurlPlugin {
     fn execute_curl_close(&self) -> (Box<BeforeExecuteHook>, Box<AfterExecuteHook>) {
         (
             Box::new(|execute_data| {
-                if unsafe { execute_data.num_args() } < 3 {
+                if execute_data.num_args() < 1 {
                     bail!("argument count incorrect");
                 }
 
@@ -231,7 +235,7 @@ impl CurlPlugin {
 
     fn get_resource_id(execute_data: &mut ExecuteData) -> anyhow::Result<i64> {
         execute_data
-            .get_parameter(1)
+            .get_parameter(0)
             .as_z_res()
             .map(|res| res.handle())
             .context("Get resource id failed")

@@ -18,9 +18,9 @@ mod context;
 mod execute;
 mod module;
 mod plugin;
-mod report;
 mod request;
 mod util;
+mod worker;
 
 use phper::{
     ini::{Ini, Policy},
@@ -76,7 +76,7 @@ pub fn get_module() -> Module {
     Ini::add(SKYWALKING_AGENT_WORKER_THREADS, 0i64, Policy::System);
     Ini::add(
         SKYWALKING_AGENT_LOG_LEVEL,
-        "INFO".to_string(),
+        "OFF".to_string(),
         Policy::System,
     );
     Ini::add(

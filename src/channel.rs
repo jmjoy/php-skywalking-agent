@@ -10,10 +10,14 @@
 
 use crate::SKYWALKING_AGENT_MAX_MESSAGE_LENGTH;
 use anyhow::{anyhow, bail, Context};
-use ipc_channel::ipc::{self, IpcBytesReceiver, IpcBytesSender, IpcSharedMemory};
+use ipc_channel::ipc::{
+    self, IpcBytesReceiver, IpcBytesSender, IpcReceiver, IpcSender, IpcSharedMemory,
+};
 use once_cell::sync::{Lazy, OnceCell};
 use phper::ini::Ini;
+use skywalking::{reporter::Reporter, skywalking_proto::v3::SegmentObject};
 use std::{
+    collections::LinkedList,
     intrinsics::transmute,
     mem::size_of,
     sync::{
@@ -21,7 +25,8 @@ use std::{
         Mutex,
     },
 };
-use tracing::{debug, info};
+use tonic::async_trait;
+use tracing::{debug, error, info};
 
 const MAX_COUNT: usize = 100;
 
@@ -33,8 +38,8 @@ pub static MAX_LENGTH: Lazy<usize> = Lazy::new(|| {
     max_length
 });
 
-static SENDER: OnceCell<Mutex<IpcBytesSender>> = OnceCell::new();
-static RECEIVER: OnceCell<Mutex<IpcBytesReceiver>> = OnceCell::new();
+static SENDER: OnceCell<Mutex<IpcSender<LinkedList<SegmentObject>>>> = OnceCell::new();
+static RECEIVER: OnceCell<Mutex<IpcReceiver<LinkedList<SegmentObject>>>> = OnceCell::new();
 
 pub fn init_channel() -> anyhow::Result<()> {
     get_count()?;
@@ -42,7 +47,7 @@ pub fn init_channel() -> anyhow::Result<()> {
     let max_length = *MAX_LENGTH;
     info!(max_length, "The max length of report body");
 
-    let channel = ipc::bytes_channel()?;
+    let channel = ipc::channel()?;
 
     let result = SENDER.set(Mutex::new(channel.0));
     result.map_err(|_| anyhow!("Channel has initialized"))?;
@@ -64,7 +69,7 @@ fn get_count() -> anyhow::Result<&'static AtomicUsize> {
     }
 }
 
-pub fn channel_send(data: &[u8]) -> anyhow::Result<()> {
+pub fn channel_send(data: LinkedList<SegmentObject>) -> anyhow::Result<()> {
     if data.len() > *MAX_LENGTH {
         bail!("Send data is too big");
     }
@@ -84,7 +89,7 @@ pub fn channel_send(data: &[u8]) -> anyhow::Result<()> {
         .context("Channel send failed")
 }
 
-pub fn channel_receive() -> anyhow::Result<Vec<u8>> {
+pub fn channel_receive() -> anyhow::Result<LinkedList<SegmentObject>> {
     let data = RECEIVER
         .get()
         .context("Channel haven't initialized")?
@@ -96,4 +101,16 @@ pub fn channel_receive() -> anyhow::Result<Vec<u8>> {
     get_count()?.fetch_sub(1, Ordering::SeqCst);
 
     Ok(data)
+}
+
+pub struct IpcReporter;
+
+#[async_trait]
+impl Reporter for IpcReporter {
+    async fn collect(&mut self, segments: LinkedList<SegmentObject>) -> skywalking::Result<()> {
+        if let Err(e) = channel_send(segments) {
+            error!(error = ?e, "Collect");
+        }
+        Ok(())
+    }
 }

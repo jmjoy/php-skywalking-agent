@@ -164,9 +164,9 @@ checksum = "bef38d45163c2f1dde094a7dfd33ccf595c92905c8f8f4fdc18d06fb1037718a"
 
 [[package]]
 name = "bytes"
-version = "1.1.0"
+version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c4872d67bab6358e59559027aa3b9157c53d9358c51423c17554809a8858e0f8"
+checksum = "f0b3de4a0c5e67e16066a0715723abd91edc2f9001d09c46e1dca929351e130e"
 
 [[package]]
 name = "bytesize"
@@ -227,9 +227,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "3.2.12"
+version = "3.2.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ab8b79fe3946ceb4a0b1c080b4018992b8d27e9ff363644c1c9b6387c854614d"
+checksum = "54635806b078b7925d6e36810b1755f2a4b5b4d57560432c1ecf60bcbe10602b"
 dependencies = [
  "atty",
  "bitflags",
@@ -980,6 +980,7 @@ dependencies = [
  "helper",
  "hostname",
  "ipc-channel",
+ "libc",
  "once_cell",
  "phper",
  "prost",
@@ -997,7 +998,6 @@ dependencies = [
 [[package]]
 name = "phper"
 version = "0.4.0-alpha.3"
-source = "git+https://github.com/jmjoy/phper.git?branch=master#5e848fa1de52eb76180da4dfdcdd5605df40b989"
 dependencies = [
  "anyhow",
  "clap",
@@ -1015,7 +1015,6 @@ dependencies = [
 [[package]]
 name = "phper-alloc"
 version = "0.4.0-alpha.3"
-source = "git+https://github.com/jmjoy/phper.git?branch=master#5e848fa1de52eb76180da4dfdcdd5605df40b989"
 dependencies = [
  "phper-build",
  "phper-sys",
@@ -1024,7 +1023,6 @@ dependencies = [
 [[package]]
 name = "phper-build"
 version = "0.4.0-alpha.3"
-source = "git+https://github.com/jmjoy/phper.git?branch=master#5e848fa1de52eb76180da4dfdcdd5605df40b989"
 dependencies = [
  "phper-sys",
 ]
@@ -1032,7 +1030,6 @@ dependencies = [
 [[package]]
 name = "phper-macros"
 version = "0.4.0-alpha.3"
-source = "git+https://github.com/jmjoy/phper.git?branch=master#5e848fa1de52eb76180da4dfdcdd5605df40b989"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1042,7 +1039,6 @@ dependencies = [
 [[package]]
 name = "phper-sys"
 version = "0.4.0-alpha.3"
-source = "git+https://github.com/jmjoy/phper.git?branch=master#5e848fa1de52eb76180da4dfdcdd5605df40b989"
 dependencies = [
  "bindgen",
  "cc",
@@ -1328,9 +1324,23 @@ checksum = "a2333e6df6d6598f2b1974829f853c2b4c5f4a6e503c10af918081aa6f8564e1"
 
 [[package]]
 name = "serde"
-version = "1.0.139"
+version = "1.0.140"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0171ebb889e45aa68b44aee0859b3eede84c6f5f5c228e6f140c0b2a0a46cad6"
+checksum = "fc855a42c7967b7c369eb5860f7164ef1f6f81c20c7cc1141f2a604e18723b03"
+dependencies = [
+ "serde_derive",
+]
+
+[[package]]
+name = "serde_derive"
+version = "1.0.140"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6f2122636b9fe3b81f1cb25099fcf2d3f542cdb1d45940d56c713158884a05da"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
 
 [[package]]
 name = "sharded-slab"
@@ -1358,8 +1368,7 @@ dependencies = [
 
 [[package]]
 name = "skywalking"
-version = "0.2.0"
-source = "git+https://github.com/apache/skywalking-rust.git?branch=master#c544be88d3e368790d8dd6600d1627bd358a8e97"
+version = "0.3.0"
 dependencies = [
  "async-stream",
  "base64",
@@ -1369,6 +1378,7 @@ dependencies = [
  "futures-util",
  "prost",
  "prost-derive",
+ "serde",
  "thiserror",
  "tokio",
  "tonic",
@@ -1379,9 +1389,12 @@ dependencies = [
 
 [[package]]
 name = "slab"
-version = "0.4.6"
+version = "0.4.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eb703cfe953bccee95685111adeedb76fabe4e97549a58d16f03ea7b9367bb32"
+checksum = "4614a76b2a8be0058caa9dbbaf66d988527d86d003c11a94fbd335d7661edcef"
+dependencies = [
+ "autocfg",
+]
 
 [[package]]
 name = "smallvec"
@@ -1762,9 +1775,9 @@ dependencies = [
 
 [[package]]
 name = "tracing-subscriber"
-version = "0.3.14"
+version = "0.3.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3a713421342a5a666b7577783721d3117f1b69a393df803ee17bb73b1e122a59"
+checksum = "60db860322da191b40952ad9affe65ea23e7dd6a5c442c2c42865810c6ab8e6b"
 dependencies = [
  "ansi_term",
  "sharded-slab",

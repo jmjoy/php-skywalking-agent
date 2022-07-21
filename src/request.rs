@@ -98,7 +98,7 @@ fn request_init(request_id: Option<u64>) {
 fn request_flush(request_id: Option<u64>) {
     let RequestContext {
         tracing_context,
-        entry_span,
+        mut entry_span,
     } = try_option!(RequestContext::remove_global(request_id)?());
 
     let status_code = unsafe { sg!(sapi_headers).http_response_code };

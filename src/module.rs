@@ -9,7 +9,10 @@
 // See the Mulan PSL v2 for more details.
 
 use crate::{
-    channel::init_channel, execute::register_execute_functions, report::init_reporter, util::IPS,
+    channel::{init_channel, IpcReporter},
+    execute::register_execute_functions,
+    util::IPS,
+    worker::init_worker,
     SKYWALKING_AGENT_ENABLE, SKYWALKING_AGENT_LOG_FILE, SKYWALKING_AGENT_LOG_LEVEL,
     SKYWALKING_AGENT_SERVICE_NAME,
 };
@@ -57,15 +60,15 @@ pub fn init(_module: ModuleContext) -> bool {
             return true;
         }
 
+        init_worker();
+
         register_execute_functions();
 
         let service_name = SERVICE_NAME.as_str();
         let service_instance = SERVICE_INSTANCE.as_str();
         info!(service_name, service_instance, "Starting skywalking agent");
 
-        tracer::set_global_tracer(Tracer::new(service_name, service_instance, LogReporter));
-
-        init_reporter();
+        tracer::set_global_tracer(Tracer::new(service_name, service_instance, IpcReporter));
     }
 
     true
@@ -96,7 +99,7 @@ fn get_ready_for_request() -> &'static AtomicBool {
 
 fn init_logger() {
     let log_level =
-        Ini::get::<String>(SKYWALKING_AGENT_LOG_LEVEL).unwrap_or_else(|| "INFO".to_string());
+        Ini::get::<String>(SKYWALKING_AGENT_LOG_LEVEL).unwrap_or_else(|| "OFF".to_string());
     let log_level = log_level.trim();
 
     let log_file = Ini::get::<String>(SKYWALKING_AGENT_LOG_FILE).unwrap_or_else(|| "".to_string());

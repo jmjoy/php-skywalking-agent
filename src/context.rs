@@ -1,3 +1,4 @@
+use anyhow::bail;
 use skywalking::context::{span::Span, trace_context::TracingContext};
 use std::{borrow::BorrowMut, cell::RefCell, mem::take};
 
@@ -8,7 +9,6 @@ use std::{borrow::BorrowMut, cell::RefCell, mem::take};
 thread_local! {
     static REQUEST_CONTEXT: std::cell::RefCell<Option<RequestContext>>  = RefCell::new(None);
 }
-
 pub struct RequestContext {
     pub tracing_context: TracingContext,
     pub entry_span: Span,
@@ -40,6 +40,15 @@ impl RequestContext {
             Some(_) => todo!(),
             None => REQUEST_CONTEXT
                 .with(|global_ctx| global_ctx.borrow_mut().as_mut().map(|ctx| f(ctx))),
+        }
+    }
+
+    pub fn try_with_global_tracing_context<T>(
+        request_id: Option<u64>, f: impl FnOnce(&mut TracingContext) -> T,
+    ) -> anyhow::Result<T> {
+        match Self::with_global(request_id, |ctx| f(&mut ctx.tracing_context)) {
+            Some(ctx) => Ok(ctx),
+            None => bail!("global tracing context not exists"),
         }
     }
 }

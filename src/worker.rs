@@ -14,6 +14,7 @@ use crate::{
     util::{current_formatted_time, HOST_NAME, IPS, OS_NAME},
     SKYWALKING_AGENT_SERVER_ADDR, SKYWALKING_AGENT_WORKER_THREADS,
 };
+use libc::{c_ulong, fork, prctl, PR_SET_NAME, PR_SET_PDEATHSIG, SIGTERM};
 use phper::ini::Ini;
 use prost::Message;
 use skywalking::skywalking_proto::v3::{
@@ -22,7 +23,7 @@ use skywalking::skywalking_proto::v3::{
 };
 use std::{
     num::NonZeroUsize,
-    process,
+    process::{self, exit},
     thread::{self, available_parallelism},
     time::Duration,
 };
@@ -33,23 +34,33 @@ use tokio::{
 use tonic::transport::{Channel, Endpoint};
 use tracing::{debug, error, info, warn};
 
-pub fn init_reporter() {
+pub fn init_worker() {
     let server_addr = Ini::get::<String>(SKYWALKING_AGENT_SERVER_ADDR).unwrap_or_default();
+    let worker_threads = worker_threads();
 
-    thread::spawn(move || {
-        let rt = new_tokio_runtime();
-        rt.block_on(start_reporter(server_addr));
-    });
+    unsafe {
+        let pid = fork();
+        if pid < 0 {
+            error!("fork failed");
+        } else if pid == 0 {
+            prctl(PR_SET_PDEATHSIG, SIGTERM);
+            let rt = new_tokio_runtime(worker_threads);
+            rt.block_on(start_worker(server_addr));
+            exit(0);
+        }
+    }
 }
 
-fn new_tokio_runtime() -> Runtime {
+fn worker_threads() -> usize {
     let worker_threads = Ini::get::<i64>(SKYWALKING_AGENT_WORKER_THREADS).unwrap_or(0);
-    let worker_threads = if worker_threads <= 0 {
+    if worker_threads <= 0 {
         available_parallelism().map(NonZeroUsize::get).unwrap_or(1)
     } else {
         worker_threads as usize
-    };
+    }
+}
 
+fn new_tokio_runtime(worker_threads: usize) -> Runtime {
     runtime::Builder::new_multi_thread()
         .enable_all()
         .worker_threads(worker_threads)
@@ -57,8 +68,8 @@ fn new_tokio_runtime() -> Runtime {
         .unwrap()
 }
 
-async fn start_reporter(server_addr: String) {
-    debug!("Starting reporter...");
+async fn start_worker(server_addr: String) {
+    debug!("Starting worker...");
 
     let endpoint = match Endpoint::from_shared(server_addr) {
         Ok(endpoint) => endpoint,
@@ -159,10 +170,10 @@ async fn receive_and_trace(channel: Channel) {
             debug!(length = data.len(), "channel received");
 
             // TODO Send raw data to avoid encode and decode again.
-            let segment: SegmentObject = Message::decode(&*data)?;
-            report_client
-                .collect(tokio_stream::iter(vec![segment]))
-                .await?;
+            // let segment: SegmentObject = Message::decode(&*data)?;
+            // report_client
+            //     .collect(tokio_stream::iter(vec![segment]))
+            //     .await?;
 
             Ok::<_, anyhow::Error>(())
         };

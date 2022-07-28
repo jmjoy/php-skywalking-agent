@@ -9,7 +9,7 @@
 // See the Mulan PSL v2 for more details.
 
 use crate::{
-    channel::channel_receive,
+    channel::{self},
     module::{mark_ready_for_request, SERVICE_INSTANCE, SERVICE_NAME},
     util::{current_formatted_time, HOST_NAME, IPS, OS_NAME},
     SKYWALKING_AGENT_SERVER_ADDR, SKYWALKING_AGENT_WORKER_THREADS,
@@ -17,11 +17,16 @@ use crate::{
 use libc::{c_ulong, fork, prctl, PR_SET_NAME, PR_SET_PDEATHSIG, SIGTERM};
 use phper::ini::Ini;
 use prost::Message;
-use skywalking::skywalking_proto::v3::{
-    trace_segment_report_service_client::TraceSegmentReportServiceClient, KeyStringValuePair,
-    SegmentObject,
+use skywalking::{
+    context::tracer::Tracer,
+    reporter::grpc::GrpcReporter,
+    skywalking_proto::v3::{
+        trace_segment_report_service_client::TraceSegmentReportServiceClient, KeyStringValuePair,
+        SegmentObject,
+    },
 };
 use std::{
+    future,
     num::NonZeroUsize,
     process::{self, exit},
     thread::{self, available_parallelism},
@@ -29,6 +34,7 @@ use std::{
 };
 use tokio::{
     runtime::{self, Runtime},
+    signal,
     time::sleep,
 };
 use tonic::transport::{Channel, Endpoint};
@@ -37,6 +43,8 @@ use tracing::{debug, error, info, warn};
 pub fn init_worker() {
     let server_addr = Ini::get::<String>(SKYWALKING_AGENT_SERVER_ADDR).unwrap_or_default();
     let worker_threads = worker_threads();
+    let service_name = SERVICE_NAME.to_string();
+    let service_instance = SERVICE_INSTANCE.to_string();
 
     unsafe {
         let pid = fork();
@@ -45,7 +53,7 @@ pub fn init_worker() {
         } else if pid == 0 {
             prctl(PR_SET_PDEATHSIG, SIGTERM);
             let rt = new_tokio_runtime(worker_threads);
-            rt.block_on(start_worker(server_addr));
+            rt.block_on(start_worker(server_addr, service_name, service_instance));
             exit(0);
         }
     }
@@ -68,7 +76,7 @@ fn new_tokio_runtime(worker_threads: usize) -> Runtime {
         .unwrap()
 }
 
-async fn start_worker(server_addr: String) {
+async fn start_worker(server_addr: String, service_name: String, service_instance: String) {
     debug!("Starting worker...");
 
     let endpoint = match Endpoint::from_shared(server_addr) {
@@ -79,9 +87,24 @@ async fn start_worker(server_addr: String) {
         }
     };
     let channel = connect(endpoint).await;
+
+    let tracer = Tracer::new_with_channel(
+        service_name,
+        service_instance,
+        GrpcReporter::new(channel),
+        ((), channel::Receiver),
+    );
+
     // report_instance_properties(channel.clone()).await;
     mark_ready_for_request();
-    receive_and_trace(channel).await;
+    info!("Worker is ready...");
+
+    if let Err(err) = tracer.reporting(future::pending()).await {
+        error!(?err, "Tracer reporting failed");
+    }
+
+    // let handle = receive_and_trace(channel);
+    // handle.await;
 }
 
 #[tracing::instrument(skip_all)]
@@ -89,11 +112,8 @@ async fn connect(endpoint: Endpoint) -> Channel {
     let channel = loop {
         match endpoint.connect().await {
             Ok(channel) => break channel,
-            Err(e) => {
-                warn!(
-                    "Connect to skywalking server failed, retry after 10s: {}",
-                    e
-                );
+            Err(err) => {
+                warn!(?err, "Connect to skywalking server failed, retry after 10s");
                 sleep(Duration::from_secs(10)).await;
             }
         }
@@ -160,27 +180,30 @@ async fn connect(endpoint: Endpoint) -> Channel {
 //     }
 // }
 
-#[tracing::instrument(skip_all)]
-async fn receive_and_trace(channel: Channel) {
-    let mut report_client = TraceSegmentReportServiceClient::new(channel);
+// #[tracing::instrument(skip_all)]
+// async fn receive_and_trace(channel: Channel) {
+//     warn!("Start");
 
-    loop {
-        let f = async {
-            let data = channel_receive()?;
-            debug!(length = data.len(), "channel received");
+//     let mut report_client = TraceSegmentReportServiceClient::new(channel);
 
-            // TODO Send raw data to avoid encode and decode again.
-            // let segment: SegmentObject = Message::decode(&*data)?;
-            // report_client
-            //     .collect(tokio_stream::iter(vec![segment]))
-            //     .await?;
+//     loop {
+//         let f = async {
+//             let data = channel_receive()?;
 
-            Ok::<_, anyhow::Error>(())
-        };
+//             warn!(length = data.len(), "Channel received");
 
-        if let Err(e) = f.await {
-            error!("Receive and trace failed: {}", e);
-            sleep(Duration::from_secs(10)).await;
-        }
-    }
-}
+//             // TODO Send raw data to avoid encode and decode again.
+//             // let segment: SegmentObject = Message::decode(&*data)?;
+//             // report_client
+//             //     .collect(tokio_stream::iter(vec![segment]))
+//             //     .await?;
+
+//             Ok::<_, anyhow::Error>(())
+//         };
+
+//         if let Err(e) = f.await {
+//             error!("Receive and trace failed: {}", e);
+//             sleep(Duration::from_secs(10)).await;
+//         }
+//     }
+// }

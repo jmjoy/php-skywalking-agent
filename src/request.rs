@@ -9,11 +9,11 @@
 // See the Mulan PSL v2 for more details.
 
 use crate::{
-    channel::{self, channel_send},
+    channel::{self},
     component::COMPONENT_PHP_ID,
     context::RequestContext,
     module::{is_ready_for_request, SERVICE_INSTANCE, SERVICE_NAME},
-    util::z_val_to_string,
+    util::{catch_unwind_and_log, z_val_to_string},
 };
 use anyhow::Context;
 use dashmap::{mapref::one::RefMut, DashMap};
@@ -27,27 +27,30 @@ use phper::{
     sys::{self, program_invocation_name},
 };
 use skywalking::context::{
-    propagation::decoder::decode_propagation, span::Span, trace_context::TracingContext, tracer,
+    propagation::decoder::decode_propagation,
+    span::Span,
+    trace_context::TracingContext,
+    tracer::{self, Tracer},
 };
-use std::cell::RefCell;
-use tracing::{error, trace, warn};
+use std::{cell::RefCell, panic::catch_unwind};
+use tracing::{error, instrument, trace, warn};
 
+#[instrument(skip_all)]
 pub fn init(_module: ModuleContext) -> bool {
     if is_ready_for_request() {
-        request_init(None);
+        catch_unwind_and_log(|| request_init(None));
     }
     true
 }
 
+#[instrument(skip_all)]
 pub fn shutdown(_module: ModuleContext) -> bool {
     if is_ready_for_request() {
-        request_flush(None);
+        catch_unwind_and_log(|| request_flush(None));
     }
-
     true
 }
 
-#[tracing::instrument(skip_all)]
 fn request_init(request_id: Option<u64>) {
     jit_initialization();
 
@@ -99,7 +102,10 @@ fn request_flush(request_id: Option<u64>) {
     let RequestContext {
         tracing_context,
         mut entry_span,
-    } = try_option!(RequestContext::remove_global(request_id)?());
+    } = match RequestContext::remove_global(request_id) {
+        Some(request_context) => request_context,
+        None => return,
+    };
 
     let status_code = unsafe { sg!(sapi_headers).http_response_code };
     entry_span.add_tag("http.status_code", &status_code.to_string());

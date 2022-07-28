@@ -8,10 +8,13 @@
 // NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 // See the Mulan PSL v2 for more details.
 
+use std::panic::{catch_unwind, UnwindSafe};
+
 use chrono::Local;
 use once_cell::sync::Lazy;
 use phper::values::ZVal;
 use systemstat::{IpAddr, Platform, System};
+use tracing::error;
 
 pub static IPS: Lazy<Vec<String>> = Lazy::new(|| {
     System::new()
@@ -75,4 +78,16 @@ pub fn z_val_to_string(zv: &ZVal) -> Option<String> {
     zv.as_z_str()
         .and_then(|zs| zs.to_str().ok())
         .map(|s| s.to_string())
+}
+
+pub fn catch_unwind_and_log<F: FnOnce() + UnwindSafe>(f: F) {
+    if let Err(e) = catch_unwind(f) {
+        if let Some(s) = e.downcast_ref::<&str>() {
+            error!(error = s, "paniced");
+        } else if let Some(s) = e.downcast_ref::<String>() {
+            error!(error = s, "paniced");
+        } else {
+            error!("paniced");
+        }
+    }
 }

@@ -9,7 +9,7 @@
 // See the Mulan PSL v2 for more details.
 
 use crate::{
-    channel::{init_channel, IpcReporter},
+    channel::{self, init_channel},
     execute::register_execute_functions,
     util::IPS,
     worker::init_worker,
@@ -60,15 +60,20 @@ pub fn init(_module: ModuleContext) -> bool {
             return true;
         }
 
-        init_worker();
-
-        register_execute_functions();
-
         let service_name = SERVICE_NAME.as_str();
         let service_instance = SERVICE_INSTANCE.as_str();
         info!(service_name, service_instance, "Starting skywalking agent");
 
-        tracer::set_global_tracer(Tracer::new(service_name, service_instance, IpcReporter));
+        init_worker();
+
+        tracer::set_global_tracer(Tracer::new_with_channel(
+            service_name,
+            service_instance,
+            (),
+            (channel::Sender, ()),
+        ));
+
+        register_execute_functions();
     }
 
     true

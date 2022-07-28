@@ -90,7 +90,7 @@ impl CurlPlugin {
     fn execute_curl_setopt_array(&self) -> (Box<BeforeExecuteHook>, Box<AfterExecuteHook>) {
         (
             Box::new(|execute_data| {
-                if unsafe { execute_data.num_args() } < 2 {
+                if execute_data.num_args() < 2 {
                     bail!("argument count incorrect");
                 }
 
@@ -159,8 +159,10 @@ impl CurlPlugin {
                     ctx.create_exit_span(url.path(), peer)
                 })?;
 
-                span.with_span_object_mut(|span| span.component_id = COMPONENT_PHP_CURL_ID);
-                span.add_tag("url", raw_url);
+                span.with_span_object_mut(|span| {
+                    span.component_id = COMPONENT_PHP_CURL_ID;
+                    span.add_tag("url", raw_url);
+                });
 
                 let sw_header = RequestContext::try_with_global_tracing_context(None, |ctx| {
                     encode_propagation(ctx, url.path(), peer)
@@ -202,8 +204,10 @@ impl CurlPlugin {
                         .as_z_str()
                         .context("curl_error is not string")?
                         .to_str()?;
-                    span.add_log(vec![("CURL_ERROR", curl_error)]);
-                    span.with_span_object_mut(|span| span.is_error = true);
+                    span.with_span_object_mut(|span| {
+                        span.is_error = true;
+                        span.add_log(vec![("CURL_ERROR", curl_error)]);
+                    });
                 } else if http_code >= 400 {
                     span.with_span_object_mut(|span| span.is_error = true);
                 } else {

@@ -12,7 +12,7 @@ use super::Plugin;
 use crate::{
     component::COMPONENT_PHP_CURL_ID,
     context::RequestContext,
-    execute::{AfterExecuteHook, BeforeExecuteHook},
+    execute::{AfterExecuteHook, BeforeExecuteHook, after_noop, validate_num_args},
 };
 use anyhow::{anyhow, bail, Context};
 use phper::{
@@ -52,9 +52,9 @@ impl Plugin for CurlPlugin {
     ) -> Option<(Box<BeforeExecuteHook>, Box<AfterExecuteHook>)> {
         match function_name {
             "curl_setopt" => Some(self.hook_curl_setopt()),
-            "curl_setopt_array" => Some(self.execute_curl_setopt_array()),
-            "curl_exec" => Some(self.execute_curl_exec()),
-            "curl_close" => Some(self.execute_curl_close()),
+            "curl_setopt_array" => Some(self.hook_curl_setopt_array()),
+            "curl_exec" => Some(self.hook_curl_exec()),
+            "curl_close" => Some(self.hook_curl_close()),
             _ => None,
         }
     }
@@ -65,9 +65,7 @@ impl CurlPlugin {
     fn hook_curl_setopt(&self) -> (Box<BeforeExecuteHook>, Box<AfterExecuteHook>) {
         (
             Box::new(|execute_data| {
-                if execute_data.num_args() < 3 {
-                    bail!("argument count incorrect");
-                }
+                validate_num_args(execute_data, 3)?;
 
                 let cid = Self::get_resource_id(execute_data)?;
 
@@ -82,17 +80,15 @@ impl CurlPlugin {
 
                 Ok(Box::new(()))
             }),
-            Box::new(|_, _, _| Ok(())),
+            after_noop(),
         )
     }
 
     #[tracing::instrument(skip_all)]
-    fn execute_curl_setopt_array(&self) -> (Box<BeforeExecuteHook>, Box<AfterExecuteHook>) {
+    fn hook_curl_setopt_array(&self) -> (Box<BeforeExecuteHook>, Box<AfterExecuteHook>) {
         (
             Box::new(|execute_data| {
-                if execute_data.num_args() < 2 {
-                    bail!("argument count incorrect");
-                }
+                validate_num_args(execute_data, 2)?;
 
                 let cid = Self::get_resource_id(execute_data)?;
 
@@ -105,17 +101,15 @@ impl CurlPlugin {
 
                 Ok(Box::new(()))
             }),
-            Box::new(|_, _, _| Ok(())),
+            after_noop(),
         )
     }
 
     #[tracing::instrument(skip_all)]
-    fn execute_curl_exec(&self) -> (Box<BeforeExecuteHook>, Box<AfterExecuteHook>) {
+    fn hook_curl_exec(&self) -> (Box<BeforeExecuteHook>, Box<AfterExecuteHook>) {
         (
             Box::new(|execute_data| {
-                if execute_data.num_args() < 1 {
-                    bail!("argument count incorrect");
-                }
+                validate_num_args(execute_data, 1)?;
 
                 let cid = Self::get_resource_id(execute_data)?;
 
@@ -220,12 +214,10 @@ impl CurlPlugin {
     }
 
     #[tracing::instrument(skip_all)]
-    fn execute_curl_close(&self) -> (Box<BeforeExecuteHook>, Box<AfterExecuteHook>) {
+    fn hook_curl_close(&self) -> (Box<BeforeExecuteHook>, Box<AfterExecuteHook>) {
         (
             Box::new(|execute_data| {
-                if execute_data.num_args() < 1 {
-                    bail!("argument count incorrect");
-                }
+                validate_num_args(execute_data, 1)?;
 
                 let cid = Self::get_resource_id(execute_data)?;
 
@@ -233,7 +225,7 @@ impl CurlPlugin {
 
                 Ok(Box::new(()))
             }),
-            Box::new(|_, _, _| Ok(())),
+            after_noop(),
         )
     }
 

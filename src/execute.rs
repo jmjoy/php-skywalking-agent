@@ -9,6 +9,7 @@
 // See the Mulan PSL v2 for more details.
 
 use crate::{module::is_ready_for_request, plugin::select_plugin};
+use anyhow::bail;
 use phper::{
     strings::ZStr,
     sys,
@@ -20,6 +21,14 @@ use tracing::error;
 pub type BeforeExecuteHook = dyn FnOnce(&mut ExecuteData) -> anyhow::Result<Box<dyn Any>>;
 
 pub type AfterExecuteHook = dyn FnOnce(Box<dyn Any>, &mut ExecuteData, &ZVal) -> anyhow::Result<()>;
+
+#[inline]
+pub fn after_noop() -> Box<AfterExecuteHook> {
+    fn noop(_: Box<dyn Any>, _: &mut ExecuteData, _: &ZVal) -> anyhow::Result<()> {
+        Ok(())
+    }
+    Box::new(noop)
+}
 
 static mut ORI_EXECUTE_INTERNAL: Option<
     unsafe extern "C" fn(execute_data: *mut sys::zend_execute_data, return_value: *mut sys::zval),
@@ -112,4 +121,11 @@ pub fn register_execute_functions() {
         ORI_EXECUTE_INTERNAL = sys::zend_execute_internal;
         sys::zend_execute_internal = Some(execute_internal);
     }
+}
+
+pub fn validate_num_args(execute_data: &mut ExecuteData, num: usize) -> anyhow::Result<()> {
+    if execute_data.num_args() < num {
+        bail!("argument count incorrect");
+    }
+    Ok(())
 }

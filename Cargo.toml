@@ -31,12 +31,12 @@ phper = { git = "https://github.com/jmjoy/phper.git", branch = "master" }
 prost = "0.10.4"
 skywalking = { git = "https://github.com/apache/skywalking-rust.git", branch = "master" }
 systemstat = "0.1.11"
-tokio = { version = "1.20.0", features = ["full"] }
+tokio = { version = "1.20.1", features = ["full"] }
 tokio-stream = "0.1.9"
 tonic = "0.7.2"
 tracing = { version = "0.1.35", features = ["attributes"] }
 tracing-appender = "0.2.2"
-tracing-subscriber = "0.3.14"
+tracing-subscriber = "0.3.15"
 url = "2.2.2"
 
 [patch.'https://github.com/jmjoy/phper.git']

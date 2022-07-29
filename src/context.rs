@@ -1,6 +1,6 @@
 use anyhow::bail;
-use skywalking::context::{span::Span, trace_context::TracingContext, tracer::Tracer};
-use std::{borrow::BorrowMut, cell::RefCell, mem::take};
+use skywalking::context::{span::Span, trace_context::TracingContext};
+use std::{cell::RefCell, mem::take};
 
 // TODO Support cli mode(swoole), so use dashmap to store trace context.
 // static TRACING_CONTEXT_MAP: Lazy<DashMap<u64, (TracingContext, Span)>> =

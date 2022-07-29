@@ -10,23 +10,18 @@
 
 use crate::SKYWALKING_AGENT_MAX_MESSAGE_LENGTH;
 use anyhow::{anyhow, bail, Context};
-use ipc_channel::ipc::{
-    self, IpcBytesReceiver, IpcBytesSender, IpcError, IpcReceiver, IpcSender, IpcSharedMemory,
-    TryRecvError,
-};
+use ipc_channel::ipc::{self, IpcReceiver, IpcSender, IpcSharedMemory, TryRecvError};
 use once_cell::sync::{Lazy, OnceCell};
 use phper::ini::Ini;
 use skywalking::{
     context::tracer::{SegmentReceiver, SegmentSender},
-    reporter::Reporter,
     skywalking_proto::v3::SegmentObject,
 };
 use std::{
     cell::RefCell,
-    collections::LinkedList,
     error::Error,
     intrinsics::transmute,
-    mem::{replace, size_of},
+    mem::size_of,
     sync::{
         atomic::{AtomicUsize, Ordering},
         Mutex,
@@ -34,7 +29,7 @@ use std::{
 };
 use tokio::task;
 use tonic::async_trait;
-use tracing::{debug, error, info, log::Record};
+use tracing::{debug, info};
 
 const MAX_COUNT: usize = 100;
 

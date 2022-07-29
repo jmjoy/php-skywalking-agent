@@ -11,30 +11,16 @@
 use crate::{
     channel::{self},
     module::{mark_ready_for_request, SERVICE_INSTANCE, SERVICE_NAME},
-    util::{current_formatted_time, HOST_NAME, IPS, OS_NAME},
     SKYWALKING_AGENT_SERVER_ADDR, SKYWALKING_AGENT_WORKER_THREADS,
 };
-use libc::{c_ulong, fork, prctl, PR_SET_NAME, PR_SET_PDEATHSIG, SIGTERM};
+use libc::{fork, prctl, PR_SET_PDEATHSIG, SIGTERM};
 use phper::ini::Ini;
-use prost::Message;
-use skywalking::{
-    context::tracer::Tracer,
-    reporter::grpc::GrpcReporter,
-    skywalking_proto::v3::{
-        trace_segment_report_service_client::TraceSegmentReportServiceClient, KeyStringValuePair,
-        SegmentObject,
-    },
-};
+use skywalking::{context::tracer::Tracer, reporter::grpc::GrpcReporter};
 use std::{
-    future,
-    num::NonZeroUsize,
-    process::{self, exit},
-    thread::{self, available_parallelism},
-    time::Duration,
+    future, num::NonZeroUsize, process::exit, thread::available_parallelism, time::Duration,
 };
 use tokio::{
     runtime::{self, Runtime},
-    signal,
     time::sleep,
 };
 use tonic::transport::{Channel, Endpoint};

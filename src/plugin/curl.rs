@@ -12,17 +12,15 @@ use super::Plugin;
 use crate::{
     component::COMPONENT_PHP_CURL_ID,
     context::RequestContext,
-    execute::{AfterExecuteHook, BeforeExecuteHook, after_noop, validate_num_args},
+    execute::{after_noop, validate_num_args, AfterExecuteHook, BeforeExecuteHook},
 };
-use anyhow::{anyhow, bail, Context};
+use anyhow::Context;
 use phper::{
     arrays::{InsertKey, ZArray},
     functions::call,
     values::{ExecuteData, ZVal},
 };
-use skywalking::context::{
-    propagation::encoder::encode_propagation, span::Span, trace_context::TracingContext,
-};
+use skywalking::context::{propagation::encoder::encode_propagation, span::Span};
 use std::{cell::RefCell, collections::HashMap, os::raw::c_long};
 use tracing::{debug, warn};
 use url::Url;

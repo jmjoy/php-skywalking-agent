@@ -22,7 +22,6 @@ use phper::{ini::Ini, modules::ModuleContext, sys};
 use skywalking::{
     common::random_generator::RandomGenerator,
     context::tracer::{self, Tracer},
-    reporter::log::LogReporter,
 };
 use std::{
     ffi::CStr,

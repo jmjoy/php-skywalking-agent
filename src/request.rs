@@ -9,30 +9,23 @@
 // See the Mulan PSL v2 for more details.
 
 use crate::{
-    channel::{self},
     component::COMPONENT_PHP_ID,
     context::RequestContext,
-    module::{is_ready_for_request, SERVICE_INSTANCE, SERVICE_NAME},
+    module::is_ready_for_request,
     util::{catch_unwind_and_log, z_val_to_string},
 };
 use anyhow::Context;
-use dashmap::{mapref::one::RefMut, DashMap};
-use helper::try_option;
-use once_cell::sync::Lazy;
 use phper::{
     arrays::ZArr,
     eg,
     modules::ModuleContext,
     pg, sg,
-    sys::{self, program_invocation_name},
+    sys::{self},
 };
 use skywalking::context::{
     propagation::decoder::decode_propagation,
-    span::Span,
-    trace_context::TracingContext,
-    tracer::{self, Tracer},
+    tracer::{self},
 };
-use std::{cell::RefCell, panic::catch_unwind};
 use tracing::{error, instrument, trace, warn};
 
 #[instrument(skip_all)]

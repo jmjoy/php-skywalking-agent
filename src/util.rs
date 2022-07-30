@@ -10,6 +10,7 @@
 
 use std::panic::{catch_unwind, UnwindSafe};
 
+use anyhow::bail;
 use chrono::Local;
 use once_cell::sync::Lazy;
 use phper::values::ZVal;
@@ -80,14 +81,19 @@ pub fn z_val_to_string(zv: &ZVal) -> Option<String> {
         .map(|s| s.to_string())
 }
 
-pub fn catch_unwind_and_log<F: FnOnce() + UnwindSafe>(f: F) {
-    if let Err(e) = catch_unwind(f) {
-        if let Some(s) = e.downcast_ref::<&str>() {
-            error!(error = s, "paniced");
-        } else if let Some(s) = e.downcast_ref::<String>() {
-            error!(error = s, "paniced");
-        } else {
-            error!("paniced");
+pub fn catch_unwind_anyhow<F: FnOnce() -> anyhow::Result<R> + UnwindSafe, R>(
+    f: F,
+) -> anyhow::Result<R> {
+    match catch_unwind(f) {
+        Ok(r) => r,
+        Err(e) => {
+            if let Some(s) = e.downcast_ref::<&str>() {
+                bail!("paniced: {}", s);
+            } else if let Some(s) = e.downcast_ref::<String>() {
+                bail!("paniced: {}", s);
+            } else {
+                bail!("paniced");
+            }
         }
     }
 }

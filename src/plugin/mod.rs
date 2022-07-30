@@ -9,12 +9,18 @@
 // See the Mulan PSL v2 for more details.
 
 mod curl;
+mod pdo;
 
 use crate::execute::{AfterExecuteHook, BeforeExecuteHook};
 use once_cell::sync::Lazy;
 
-static PLUGINS: Lazy<Vec<Box<DynPlugin>>> =
-    Lazy::new(|| vec![Box::new(curl::CurlPlugin::default())]);
+// Register plugins here.
+static PLUGINS: Lazy<Vec<Box<DynPlugin>>> = Lazy::new(|| {
+    vec![
+        Box::new(curl::CurlPlugin::default()),
+        Box::new(pdo::PdoPlugin::default()),
+    ]
+});
 
 pub type DynPlugin = dyn Plugin + Send + Sync + 'static;
 

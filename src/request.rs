@@ -12,7 +12,7 @@ use crate::{
     component::COMPONENT_PHP_ID,
     context::RequestContext,
     module::is_ready_for_request,
-    util::{catch_unwind_and_log, z_val_to_string},
+    util::{catch_unwind_anyhow, z_val_to_string},
 };
 use anyhow::Context;
 use phper::{
@@ -31,7 +31,9 @@ use tracing::{error, instrument, trace, warn};
 #[instrument(skip_all)]
 pub fn init(_module: ModuleContext) -> bool {
     if is_ready_for_request() {
-        catch_unwind_and_log(|| request_init(None));
+        if let Err(err) = catch_unwind_anyhow(|| request_init(None)) {
+            error!(?err, "request init failed");
+        }
     }
     true
 }
@@ -39,21 +41,17 @@ pub fn init(_module: ModuleContext) -> bool {
 #[instrument(skip_all)]
 pub fn shutdown(_module: ModuleContext) -> bool {
     if is_ready_for_request() {
-        catch_unwind_and_log(|| request_flush(None));
+        if let Err(err) = catch_unwind_anyhow(|| request_shutdown(None)) {
+            error!(?err, "request shutdown failed");
+        }
     }
     true
 }
 
-fn request_init(request_id: Option<u64>) {
+fn request_init(request_id: Option<u64>) -> anyhow::Result<()> {
     jit_initialization();
 
-    let server = match get_page_request_server() {
-        Ok(server) => server,
-        Err(e) => {
-            error!("Get $_SERVER failed: {}", e);
-            return;
-        }
-    };
+    let server = get_page_request_server()?;
 
     let header = get_page_request_header(server);
     let uri = get_page_request_uri(server);
@@ -89,16 +87,15 @@ fn request_init(request_id: Option<u64>) {
             entry_span: span,
         },
     );
+
+    Ok(())
 }
 
-fn request_flush(request_id: Option<u64>) {
+fn request_shutdown(request_id: Option<u64>) -> anyhow::Result<()> {
     let RequestContext {
         tracing_context,
         mut entry_span,
-    } = match RequestContext::remove_global(request_id) {
-        Some(request_context) => request_context,
-        None => return,
-    };
+    } = RequestContext::remove_global(request_id).context("request context not exists")?;
 
     let status_code = unsafe { sg!(sapi_headers).http_response_code };
     entry_span.add_tag("http.status_code", &status_code.to_string());
@@ -108,6 +105,8 @@ fn request_flush(request_id: Option<u64>) {
 
     drop(entry_span);
     drop(tracing_context);
+
+    Ok(())
 }
 
 fn jit_initialization() {

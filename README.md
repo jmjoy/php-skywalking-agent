@@ -19,7 +19,7 @@ NOTE: This is a php extension project, which use pure Rust rather than C/C++, po
    cd php-skywalking-agent
    ```
 
-1. Build the extension.
+1. Build and install the extension.
 
     ```shell
     # Optional, specify if php isn't installed globally.
@@ -27,12 +27,7 @@ NOTE: This is a php extension project, which use pure Rust rather than C/C++, po
 
     # Build libskywalking_agent.so.
     cargo build --release
-    ```
 
-1. Install the extension.
-
-    ```shell
-    # Install to php extension path.
     ./target/release/skywalking_agent install
     ```
 

@@ -8,26 +8,43 @@
 // NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 // See the Mulan PSL v2 for more details.
 
-use crate::{module::is_ready_for_request, plugin::select_plugin};
-use anyhow::bail;
+use crate::{module::is_ready_for_request, plugin::select_plugin, util::catch_unwind_anyhow};
+use anyhow::{bail, Context};
 use phper::{
+    objects::ZObj,
     strings::ZStr,
     sys,
     values::{ExecuteData, ZVal},
 };
-use std::any::Any;
+use std::{any::Any, panic::AssertUnwindSafe};
 use tracing::error;
 
 pub type BeforeExecuteHook = dyn FnOnce(&mut ExecuteData) -> anyhow::Result<Box<dyn Any>>;
 
 pub type AfterExecuteHook = dyn FnOnce(Box<dyn Any>, &mut ExecuteData, &ZVal) -> anyhow::Result<()>;
 
-#[inline]
-pub fn after_noop() -> Box<AfterExecuteHook> {
-    fn noop(_: Box<dyn Any>, _: &mut ExecuteData, _: &ZVal) -> anyhow::Result<()> {
-        Ok(())
+pub trait Noop {
+    fn noop() -> Self;
+}
+
+impl Noop for Box<BeforeExecuteHook> {
+    #[inline]
+    fn noop() -> Self {
+        fn f(_: &mut ExecuteData) -> anyhow::Result<Box<dyn Any>> {
+            Ok(Box::new(()))
+        }
+        Box::new(f)
     }
-    Box::new(noop)
+}
+
+impl Noop for Box<AfterExecuteHook> {
+    #[inline]
+    fn noop() -> Self {
+        fn f(_: Box<dyn Any>, _: &mut ExecuteData, _: &ZVal) -> anyhow::Result<()> {
+            Ok(())
+        }
+        Box::new(f)
+    }
 }
 
 static mut ORI_EXECUTE_INTERNAL: Option<
@@ -48,7 +65,7 @@ unsafe extern "C" fn execute_internal(
 
     let function = execute_data.func();
 
-    let function_name = function.get_name();
+    let function_name = function.get_function_name();
     let function_name = match function_name.to_str().ok() {
         Some(s) => s,
         None => {
@@ -86,7 +103,7 @@ unsafe extern "C" fn execute_internal(
         }
     };
 
-    let result = before(execute_data);
+    let result = catch_unwind_anyhow(AssertUnwindSafe(|| before(execute_data)));
     if let Err(e) = &result {
         error!("before execute: {:?}", e);
     }
@@ -95,7 +112,9 @@ unsafe extern "C" fn execute_internal(
 
     // If before hook return error, don't execute the after hook.
     if let Ok(data) = result {
-        if let Err(e) = after(data, execute_data, return_value) {
+        if let Err(e) =
+            catch_unwind_anyhow(AssertUnwindSafe(|| after(data, execute_data, return_value)))
+        {
             error!("after execute: {:?}", e);
         }
     }
@@ -128,4 +147,8 @@ pub fn validate_num_args(execute_data: &mut ExecuteData, num: usize) -> anyhow::
         bail!("argument count incorrect");
     }
     Ok(())
+}
+
+pub fn get_this_mut(execute_data: &mut ExecuteData) -> anyhow::Result<&mut ZObj> {
+    execute_data.get_this_mut().context("$this is empty")
 }

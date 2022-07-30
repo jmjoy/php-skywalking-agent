@@ -12,7 +12,7 @@ use super::Plugin;
 use crate::{
     component::COMPONENT_PHP_CURL_ID,
     context::RequestContext,
-    execute::{after_noop, validate_num_args, AfterExecuteHook, BeforeExecuteHook},
+    execute::{validate_num_args, AfterExecuteHook, BeforeExecuteHook, Noop},
 };
 use anyhow::Context;
 use phper::{
@@ -59,7 +59,6 @@ impl Plugin for CurlPlugin {
 }
 
 impl CurlPlugin {
-    #[tracing::instrument(skip_all)]
     fn hook_curl_setopt(&self) -> (Box<BeforeExecuteHook>, Box<AfterExecuteHook>) {
         (
             Box::new(|execute_data| {
@@ -78,11 +77,10 @@ impl CurlPlugin {
 
                 Ok(Box::new(()))
             }),
-            after_noop(),
+            Noop::noop(),
         )
     }
 
-    #[tracing::instrument(skip_all)]
     fn hook_curl_setopt_array(&self) -> (Box<BeforeExecuteHook>, Box<AfterExecuteHook>) {
         (
             Box::new(|execute_data| {
@@ -99,11 +97,10 @@ impl CurlPlugin {
 
                 Ok(Box::new(()))
             }),
-            after_noop(),
+            Noop::noop(),
         )
     }
 
-    #[tracing::instrument(skip_all)]
     fn hook_curl_exec(&self) -> (Box<BeforeExecuteHook>, Box<AfterExecuteHook>) {
         (
             Box::new(|execute_data| {
@@ -211,7 +208,6 @@ impl CurlPlugin {
         )
     }
 
-    #[tracing::instrument(skip_all)]
     fn hook_curl_close(&self) -> (Box<BeforeExecuteHook>, Box<AfterExecuteHook>) {
         (
             Box::new(|execute_data| {
@@ -223,7 +219,7 @@ impl CurlPlugin {
 
                 Ok(Box::new(()))
             }),
-            after_noop(),
+            Noop::noop(),
         )
     }
 

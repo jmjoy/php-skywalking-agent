@@ -1,10 +1,29 @@
 # php-skywalking-agent
 
+**Under development.**
+
 Non intrusive PHP skywalking agent, written in Rust.
 
-*Only support on Linux now.*
-
 NOTE: This is a php extension project, which use pure Rust rather than C/C++, power by [phper](https://github.com/jmjoy/phper).
+
+## Support
+
+### Environment
+
+The environment support follow by [phper](https://github.com/jmjoy/phper#tested-support).
+
+- **OS:** Linux
+
+- **PHP:** version 7.0 ~ 8.1, nts mode, non debug.
+
+### Component
+
+- PHP-FPM Ecosystem
+  - [x] [cURL](https://www.php.net/manual/en/book.curl.php#book.curl)
+  - [x] [PDO](https://www.php.net/manual/en/book.pdo.php)
+
+- Swoole Ecosystem
+  - [ ] TODO
 
 ## How to use?
 

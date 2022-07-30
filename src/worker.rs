@@ -178,7 +178,6 @@ async fn connect(endpoint: Endpoint) -> Channel {
 
 //             warn!(length = data.len(), "Channel received");
 
-//             // TODO Send raw data to avoid encode and decode again.
 //             // let segment: SegmentObject = Message::decode(&*data)?;
 //             // report_client
 //             //     .collect(tokio_stream::iter(vec![segment]))

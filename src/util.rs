@@ -8,14 +8,12 @@
 // NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 // See the Mulan PSL v2 for more details.
 
-use std::panic::{catch_unwind, UnwindSafe};
-
 use anyhow::bail;
 use chrono::Local;
 use once_cell::sync::Lazy;
 use phper::values::ZVal;
+use std::panic::{catch_unwind, UnwindSafe};
 use systemstat::{IpAddr, Platform, System};
-use tracing::error;
 
 pub static IPS: Lazy<Vec<String>> = Lazy::new(|| {
     System::new()
@@ -54,6 +52,8 @@ pub static IPS: Lazy<Vec<String>> = Lazy::new(|| {
         .unwrap_or_else(|| vec!["127.0.0.1".to_owned()])
 });
 
+// TODO Maybe report_instance_properties used.
+#[allow(dead_code)]
 pub static HOST_NAME: Lazy<String> = Lazy::new(|| {
     hostname::get()
         .ok()
@@ -61,6 +61,8 @@ pub static HOST_NAME: Lazy<String> = Lazy::new(|| {
         .unwrap_or_else(|| "unknown".to_string())
 });
 
+// TODO Maybe report_instance_properties used.
+#[allow(dead_code)]
 pub const OS_NAME: &str = if cfg!(target_os = "linux") {
     "Linux"
 } else if cfg!(target_os = "windows") {
@@ -71,6 +73,8 @@ pub const OS_NAME: &str = if cfg!(target_os = "linux") {
     "Unknown"
 };
 
+// TODO Maybe report_instance_properties used.
+#[allow(dead_code)]
 pub fn current_formatted_time() -> String {
     Local::now().format("%Y-%m-%d %H:%M:%S").to_string()
 }

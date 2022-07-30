@@ -14,3 +14,4 @@
 
 pub const COMPONENT_PHP_ID: i32 = 8001;
 pub const COMPONENT_PHP_CURL_ID: i32 = 8002;
+pub const COMPONENT_PHP_PDO_ID: i32 = 8003;

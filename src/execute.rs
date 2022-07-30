@@ -21,7 +21,8 @@ use tracing::error;
 
 pub type BeforeExecuteHook = dyn FnOnce(&mut ExecuteData) -> anyhow::Result<Box<dyn Any>>;
 
-pub type AfterExecuteHook = dyn FnOnce(Box<dyn Any>, &mut ExecuteData, &ZVal) -> anyhow::Result<()>;
+pub type AfterExecuteHook =
+    dyn FnOnce(Box<dyn Any>, &mut ExecuteData, &mut ZVal) -> anyhow::Result<()>;
 
 pub trait Noop {
     fn noop() -> Self;
@@ -40,7 +41,7 @@ impl Noop for Box<BeforeExecuteHook> {
 impl Noop for Box<AfterExecuteHook> {
     #[inline]
     fn noop() -> Self {
-        fn f(_: Box<dyn Any>, _: &mut ExecuteData, _: &ZVal) -> anyhow::Result<()> {
+        fn f(_: Box<dyn Any>, _: &mut ExecuteData, _: &mut ZVal) -> anyhow::Result<()> {
             Ok(())
         }
         Box::new(f)

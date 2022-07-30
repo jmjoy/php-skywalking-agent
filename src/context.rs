@@ -43,11 +43,11 @@ impl RequestContext {
         }
     }
 
-    pub fn try_with_global_tracing_context<T>(
-        request_id: Option<u64>, f: impl FnOnce(&mut TracingContext) -> T,
+    pub fn try_with_global_ctx<T>(
+        request_id: Option<u64>, f: impl FnOnce(&mut TracingContext) -> anyhow::Result<T>,
     ) -> anyhow::Result<T> {
         match Self::with_global(request_id, |ctx| f(&mut ctx.tracing_context)) {
-            Some(ctx) => Ok(ctx),
+            Some(t) => t,
             None => bail!("global tracing context not exists"),
         }
     }

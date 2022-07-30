@@ -22,7 +22,7 @@ use phper::{
 };
 use skywalking::context::{propagation::encoder::encode_propagation, span::Span};
 use std::{cell::RefCell, collections::HashMap, os::raw::c_long};
-use tracing::{debug, warn};
+use tracing::debug;
 use url::Url;
 
 static CURLOPT_HTTPHEADER: c_long = 10023;
@@ -144,8 +144,8 @@ impl CurlPlugin {
                 };
                 let peer = &format!("{host}:{port}");
 
-                let mut span = RequestContext::try_with_global_tracing_context(None, |ctx| {
-                    ctx.create_exit_span(url.path(), peer)
+                let mut span = RequestContext::try_with_global_ctx(None, |ctx| {
+                    Ok(ctx.create_exit_span(url.path(), peer))
                 })?;
 
                 span.with_span_object_mut(|span| {
@@ -153,8 +153,8 @@ impl CurlPlugin {
                     span.add_tag("url", raw_url);
                 });
 
-                let sw_header = RequestContext::try_with_global_tracing_context(None, |ctx| {
-                    encode_propagation(ctx, url.path(), peer)
+                let sw_header = RequestContext::try_with_global_ctx(None, |ctx| {
+                    Ok(encode_propagation(ctx, url.path(), peer))
                 })?;
                 let mut val = CURL_HEADERS
                     .with(|headers| headers.borrow_mut().remove(&cid))
